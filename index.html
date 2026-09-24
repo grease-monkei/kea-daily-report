@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>KEA Daily Report</title>
+<meta name="theme-color" content="#1f4d2b">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<style>
+:root{--bg:#f3f5f2;--card:#fff;--ink:#1c2420;--muted:#66706a;--line:#d7ddd8;--brand:#1f4d2b;--brand2:#2f7a44;--ok:#2f7a44;--na:#8a8f8c;--warn:#b54a1c}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.35 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding-bottom:110px}
+header{background:var(--brand);color:#fff;padding:14px 16px;position:sticky;top:0;z-index:5;display:flex;justify-content:space-between;align-items:center}
+header h1{font-size:18px;margin:0}
+header small{opacity:.8;font-size:12px}
+main{max-width:720px;margin:0 auto;padding:12px 12px}
+details{background:var(--card);border:1px solid var(--line);border-radius:12px;margin:10px 0;overflow:hidden}
+summary{padding:14px 16px;font-weight:700;font-size:17px;cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center}
+summary::-webkit-details-marker{display:none}
+summary .st{font-weight:500;font-size:13px;color:var(--muted)}
+summary .st.done{color:var(--ok)}
+.body{padding:4px 16px 16px}
+label{display:block;font-size:13px;color:var(--muted);margin:10px 0 4px}
+input,select,textarea{width:100%;font:inherit;padding:11px 12px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--ink)}
+textarea{min-height:64px;resize:vertical}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.yn{display:flex;gap:6px}
+.yn button{flex:1}
+button{font:inherit;border:1px solid var(--line);background:#fff;border-radius:9px;padding:11px 12px;cursor:pointer;color:var(--ink)}
+button.mid{background:#e3efe4;border-color:var(--brand2);color:var(--brand)}
+button.on{background:var(--brand2);color:#fff;border-color:var(--brand2)}
+button.primary{background:var(--brand);color:#fff;border-color:var(--brand);font-weight:700}
+.plant{display:grid;grid-template-columns:1fr 74px 74px;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
+.plant .nm{font-size:15px}
+.plant .nm small{display:block;color:var(--muted);font-size:12px}
+.plant input{padding:9px 6px;text-align:center}
+.phead{display:grid;grid-template-columns:1fr 74px 74px;gap:8px;font-size:12px;color:var(--muted);text-align:center;padding-top:8px}
+.phead span:first-child{text-align:left}
+.tot{font-size:13px;color:var(--muted);margin-top:8px}
+.grp{font-weight:700;margin:16px 0 4px;display:flex;justify-content:space-between;align-items:center}
+.grp button{padding:6px 10px;font-size:13px;font-weight:500}
+.chk{display:flex;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line)}
+.chk .box{flex:0 0 52px;height:40px;border-radius:8px;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;background:#fff}
+.chk .box.y{background:var(--ok);color:#fff;border-color:var(--ok)}
+.chk .box.na{background:#e6e8e7;color:var(--na)}
+.chk .box.no{background:var(--warn);color:#fff;border-color:var(--warn)}
+.chk .tx{font-size:15px}
+.hint{font-size:13px;color:var(--muted);margin:6px 0}
+.photos{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+.photos div{position:relative}
+.photos img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px}
+.photos button{position:absolute;top:4px;right:4px;padding:2px 8px;background:rgba(0,0,0,.6);color:#fff;border:0}
+canvas.sig{width:100%;height:150px;border:1px dashed var(--muted);border-radius:9px;background:#fff;touch-action:none}
+.bar{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);padding:10px 12px calc(10px + env(safe-area-inset-bottom));display:flex;gap:8px;z-index:6}
+.bar button{flex:1;padding:14px}
+.toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:#222;color:#fff;padding:10px 16px;border-radius:20px;font-size:14px;display:none;z-index:9;max-width:90%}
+.cfg{font-size:13px;color:#fff;background:transparent;border:1px solid rgba(255,255,255,.5);padding:6px 10px}
+</style>
+</head>
+<body>
+<header><div><h1>KEA Daily Report</h1><small>Blue Pine Enterprises · Hwy 1 &amp; 264th</small></div><button class="cfg" onclick="newDay()">New day</button></header>
+<main id="app"></main>
+<div class="bar"><button onclick="saveNow(true)">Save draft</button><button class="primary" onclick="makeReport()">Create &amp; send report</button></div>
+<div class="toast" id="toast"></div>
+
+<script src="data.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+<script>
+// ---------- setup ----------
+const PROJECT={no:'106064',name:'HWY 1 264th Street Intersection',qmpName:'Hwy 1 & 264th St Interchange (KEA)',sub:'Blue Pine Enterprises',email:'Aliziadezfouli.-PTR@kiewit.com',cc:'tim@bluepineenterprises.com'};
+const CONIFERS=['Grand Fir','Sitka Spruce','Douglas Fir','Western Red Cedar','Western Hemlock','Shore Pine'];
+const NOTES=[
+ ['traffic','Traffic Control','N/A'],
+ ['safety','Safety','Tailboard / FLRA completed and signed by all crew. No incidents.'],
+ ['enviro','Enviro','N/A (all hand work; machine wasn\'t used)'],
+ ['quality','Quality','Plants arrived in good condition'],
+ ['engineering','Engineering','No concerns or risks identified in today\'s activity.'],
+ ['additional','Additional Work (LEMs, Standby, Rework, Etc.)','No concerns or risks identified in today\'s activity.'],
+ ['other','Other Concerns / Risks / Impacts','No concerns or risks identified in today\'s activity.']];
+const CHECKS=[
+ ['1. PRE-START',['Tailboard / FLRA completed and signed by all crew','Work area released by KEA for today','ESA limits, flagging and signage checked and intact','Utility locates confirmed for any digging or staking','Traffic control in place per the KEA TMP','Environmental Monitor / QEP on site (required below HWM)','Access route to the area confirmed and clear','Offload / staging location confirmed with KEA','Machines required on site and pre-use inspected','Spill kit and spare ESC material at the work face','PPE checked','Seed mix approval']],
+ ['2. PLANT MATERIAL ON SITE',['Delivery received today (record quantities below)','Stock checked on arrival against the approved plant list','Condition acceptable - moist, no wilt, damage or girdling roots','Any rejected material recorded and supplier notified','Stock shaded, protected and watered on site']],
+ ['3. SOIL / SUBGRADE',['Landscape Subgrade / Topsoil Release completed by KEA','Depth visually verified - no obvious deficiencies','Area free of debris and construction waste','Soil moisture suitable for planting','Deficiencies reported to KEA before planting','*Does KEA need to water the area?']],
+ ['4. INSTALL',['Layout / grid set out and checked before planting','Planting depth correct - root crown at finished grade','Plugs fully seated, no exposed plug material','Mulch only where indicated - 75 mm, rings kept clear of stems','Quantities planted per area','Staking for #10 pot and #20 pot per BCLNA']],
+ ['5. RECORDS',['Before / during / after photos taken and labelled by area','Daily quantities recorded below']]];
+const EXTRA=[['bark_blown','Bark - blown in','m³'],['bark_machine','Bark - machine placed','m³'],['seed','Broadcast seed','m²'],['staking','Extra #5 pot staking','ea']];
+const KEEP=['by','foreman','keaRep','area','shift'];
+
+function blank(){return{date:new Date().toLocaleDateString('en-CA'),shift:'Day Shift',by:'',foreman:'',initials:'',keaRep:'Ali Ziadezfouli',hi:'',lo:'',cond:'',staff:'',craft:'',sub:'',area:AREAS[0].name,subArea:'',
+ tasks:'Planting Environmental Restoration & Compensation Areas:',plants:{},extra:{},stockDays:'',watering:'',weatherOk:'',checks:{},gm:'',mulch:'',machines:'',issues:'',pct:'',sn:{},
+ notes:Object.fromEntries(NOTES.map(n=>[n[0],n[2]])),sig:''}}
+let S=load()||blank(), PHOTOS=[];
+function load(){try{return JSON.parse(localStorage.getItem('kea-draft'))}catch(e){return null}}
+function saveNow(t){try{localStorage.setItem('kea-draft',JSON.stringify(S));if(t)toast('Draft saved on this phone')}catch(e){toast('Could not save draft')}}
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.style.display='block';clearTimeout(t._t);t._t=setTimeout(()=>t.style.display='none',2800)}
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const STAT={'':'Not started',S:'Started',D:'Done'};
+function lastPct(){try{return(JSON.parse(localStorage.getItem('kea-last'))||{})[S.area]}catch(e){}}
+function sn(k){return `<label>Notes</label><textarea placeholder="Anything to add?" oninput="S.sn['${k}']=this.value;saveNow()">${esc((S.sn||{})[k])}</textarea>`}
+const WX={lat:49.109,lon:-122.489};
+const WMO={0:'Sunny',1:'Mostly sunny',2:'Partly cloudy',3:'Cloudy',45:'Fog',48:'Fog',51:'Light drizzle',53:'Drizzle',55:'Heavy drizzle',56:'Freezing drizzle',57:'Freezing drizzle',61:'Light rain',63:'Rain',65:'Heavy rain',66:'Freezing rain',67:'Freezing rain',71:'Light snow',73:'Snow',75:'Heavy snow',77:'Snow',80:'Showers',81:'Showers',82:'Heavy showers',85:'Snow showers',86:'Snow showers',95:'Thunderstorms',96:'Thunderstorms',99:'Thunderstorms'};
+async function getWx(force){if(!force&&S.wxDate===S.date)return;const st=document.getElementById('wxst');if(st)st.textContent='Getting weather…';
+ try{const u=`https://api.open-meteo.com/v1/forecast?latitude=${WX.lat}&longitude=${WX.lon}&daily=temperature_2m_max,temperature_2m_min,weather_code,precipitation_sum&timezone=America%2FVancouver&start_date=${S.date}&end_date=${S.date}`;
+  const d=(await (await fetch(u)).json()).daily;if(!d||d.temperature_2m_max[0]==null)throw 0;
+  const mm=d.precipitation_sum[0];S.hi=String(Math.round(d.temperature_2m_max[0]));S.lo=String(Math.round(d.temperature_2m_min[0]));S.cond=(WMO[d.weather_code[0]]||'')+(mm>=1?`, ${Math.round(mm)} mm rain`:'');
+  S.wxDate=S.date;S.wxSrc='Auto-filled '+new Date().toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})+' (Open-Meteo). Edit if it looks wrong.';saveNow();render()}
+ catch(e){if(st)st.textContent='No signal - weather not updated. Type it in or tap Update later.'}}
+const inits=n=>String(n||'').trim().split(/\s+/).map(w=>w[0]||'').join('').toUpperCase();
+const area=()=>AREAS.find(a=>a.name===S.area)||AREAS[0];
+const num=v=>{const n=parseFloat(v);return isNaN(n)?0:n};
+function payOf(p){if(p[0]==='Trees')return CONIFERS.includes(p[1])?'Conifers':'Deciduous';return /P$/.test(p[3])&&p[3]==='50P'?'Emergent':'Shrubs'}
+
+// ---------- photos (IndexedDB so they survive closing the app) ----------
+const DB=new Promise(r=>{const q=indexedDB.open('kea-photos',1);q.onupgradeneeded=()=>q.result.createObjectStore('p',{keyPath:'id'});q.onsuccess=()=>r(q.result);q.onerror=()=>r(null)});
+async function dbAll(){const d=await DB;if(!d)return[];return new Promise(r=>{const q=d.transaction('p').objectStore('p').getAll();q.onsuccess=()=>r(q.result);q.onerror=()=>r([])})}
+async function dbPut(o){const d=await DB;if(d)d.transaction('p','readwrite').objectStore('p').put(o)}
+async function dbDel(id){const d=await DB;if(d)d.transaction('p','readwrite').objectStore('p').delete(id)}
+async function dbClear(){const d=await DB;if(d)d.transaction('p','readwrite').objectStore('p').clear()}
+function shrink(file){return new Promise(res=>{const img=new Image();img.onload=()=>{const m=1400,k=Math.min(1,m/Math.max(img.width,img.height));const c=document.createElement('canvas');c.width=Math.round(img.width*k);c.height=Math.round(img.height*k);c.getContext('2d').drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(img.src);res({id:Date.now()+Math.random(),data:c.toDataURL('image/jpeg',.8),w:c.width,h:c.height})};img.src=URL.createObjectURL(file)})}
+async function addPhotos(inp){for(const f of inp.files){const p=await shrink(f);PHOTOS.push(p);dbPut(p)}inp.value='';drawPhotos()}
+function delPhoto(i){dbDel(PHOTOS[i].id);PHOTOS.splice(i,1);drawPhotos()}
+function drawPhotos(){document.getElementById('ph').innerHTML=PHOTOS.map((p,i)=>`<div><img src="${p.data}"><button onclick="delPhoto(${i})">✕</button></div>`).join('');document.getElementById('phst').textContent=PHOTOS.length+' photo'+(PHOTOS.length==1?'':'s')}
+
+// ---------- render ----------
+function f(k,lab,type='text',extra=''){return `<div><label>${lab}</label><input type="${type}" value="${esc(S[k])}" oninput="S['${k}']=this.value;saveNow()" ${k==='date'?'onchange="getWx()"':''} ${extra}></div>`}
+function yn(k,lab){return `<div><label>${lab}</label><div class="yn">${['YES','NO'].map(v=>`<button class="${S[k]===v?'on':''}" onclick="S['${k}']=S['${k}']==='${v}'?'':'${v}';saveNow();render()">${v}</button>`).join('')}</div></div>`}
+function render(){
+ const open=[...document.querySelectorAll('details')].map(d=>d.open);
+ const a=area();
+ const ids=[];let checksHtml='',nChk=0,nDone=0;
+ CHECKS.forEach(([g,items],gi)=>{checksHtml+=`<div class="grp">${g}<button onclick="tickAll(${gi})">Tick all ✓</button></div>`;
+  items.forEach((t,ii)=>{const id=gi+'.'+ii,v=S.checks[id]||'',isYN=t[0]==='*';nChk++;if(v)nDone++;
+   const lbl=isYN?(v==='y'?'YES':v==='n'?'NO':''):(v==='y'?'✓':v==='na'?'N/A':'');
+   checksHtml+=`<div class="chk" onclick="cyc('${id}',${isYN})"><div class="box ${v==='y'?(isYN?'no':'y'):v==='n'?'y':v}">${lbl}</div><div class="tx">${esc(isYN?t.slice(1)+' (tap: YES / NO)':t)}</div></div>`});checksHtml+=sn('chk'+gi)});
+ let plantHtml='<div class="phead"><span>Species</span><span>Delivered</span><span>Planting</span></div>',td=0;
+ a.plants.forEach(p=>{const v=S.plants[p[1]]||{};td+=num(v.d);
+  plantHtml+=`<div class="plant"><div class="nm">${esc(p[1])}<small>${p[3]} · plan ${p[4]} · ${payOf(p)}</small></div><input inputmode="numeric" value="${esc(v.d)}" oninput="setP('${esc(p[1])}','d',this.value)"><button class="${v.s==='D'?'on':v.s==='S'?'mid':''}" style="padding:9px 2px;font-size:13px" onclick="cycS('${esc(p[1])}')">${STAT[v.s||'']}</button></div>`});
+ let extraHtml='<div class="phead"><span>Item</span><span>Delivered</span><span>Installed</span></div>';
+ EXTRA.forEach(([k,n,u])=>{const v=S.extra[k]||{};extraHtml+=`<div class="plant"><div class="nm">${n}<small>${u}</small></div><input inputmode="decimal" value="${esc(v.d)}" oninput="setX('${k}','d',this.value)"><input inputmode="decimal" value="${esc(v.i)}" oninput="setX('${k}','i',this.value)"></div>`});
+ document.getElementById('app').innerHTML=`
+<details open><summary>1. Today <span class="st ${S.by&&S.staff?'done':''}">${esc(S.date)}</span></summary><div class="body">
+ <div class="row">${f('date','Shift date','date')}<div><label>Shift</label><select onchange="S.shift=this.value;saveNow()">${['Day Shift','Night Shift'].map(o=>`<option ${S.shift===o?'selected':''}>${o}</option>`).join('')}</select></div></div>
+ <div class="row">${f('by','Report submitted by','text','placeholder="Name"')}${f('foreman','Foreman','text')}</div>
+ <div class="row">${f('keaRep','KEA rep','text')}<div></div></div>
+ <div class="grp" style="margin-top:14px">Weather · Hwy 1 &amp; 264th, Langley<button onclick="getWx(true)">↻ Update</button></div>
+ <div class="hint" id="wxst">${esc(S.wxSrc||'')}</div>
+ <div class="row3">${f('hi','High °C','number','inputmode="decimal"')}${f('lo','Low °C','number','inputmode="decimal"')}${f('cond','Conditions','text','placeholder="Sunny" list="wx"')}</div>
+ <datalist id="wx"><option>Sunny</option><option>Cloudy</option><option>Showers</option><option>Rain</option><option>Heavy rain</option><option>Fog</option><option>Wind</option></datalist>
+ <div class="row">${f('staff','Staff count','number','inputmode="numeric"')}<div></div></div>
+ ${sn('today')}
+</div></details>
+<details><summary>2. Area &amp; tasks <span class="st done">${esc(S.area)}</span></summary><div class="body">
+ <label>Area worked</label><select onchange="S.area=this.value;saveNow();render()">${AREAS.map(x=>`<option ${x.name===S.area?'selected':''}>${esc(x.name)}</option>`).join('')}</select>
+ <div class="hint">${esc(a.info)}</div>
+ ${f('subArea','Sub area (optional)','text')}
+ <label>Tasks completed</label><textarea oninput="S.tasks=this.value;saveNow()">${esc(S.tasks)}</textarea>
+ <label>Summary of today's work</label><textarea placeholder="e.g. Finished layout / Planted along the north side" oninput="S.summary=this.value;saveNow()">${esc(S.summary)}</textarea>
+ ${sn('area')}
+</div></details>
+<details><summary>3. Plants <span class="st ${S.pct!==''?'done':''}">${S.pct!==''?'~'+S.pct+'% planted':''}</span></summary><div class="body">
+ <label>How much of ${esc(S.area)} is planted so far? (rough guess is fine)</label>
+ <select onchange="S.pct=this.value;saveNow();render()"><option value="">Choose…</option>${[0,10,20,30,40,50,60,70,80,90,100].map(v=>`<option value="${v}" ${String(S.pct)===String(v)?'selected':''}>About ${v}%</option>`).join('')}</select>
+ <div class="hint">${lastPct()?`Last report (${esc(lastPct().date)}): about ${lastPct().pct}%`:'No earlier report for this area on this phone.'}</div>
+ <div class="hint">Delivered: from the delivery slip, blank if none. Planting: tap to set Not started → Started → Done.</div>
+ ${plantHtml}<div class="tot" id="ptot">Total delivered ${td}</div>
+ ${sn('plants')}
+ <div class="grp">Other pay items</div>${extraHtml}
+</div></details>
+<details><summary>4. Stock &amp; site <span class="st ${S.stockDays!==''?'done':''}">${S.stockDays!==''?S.stockDays+' days stock':''}</span></summary><div class="body">
+ <div class="hint">HARD LIMIT: no more than TWO DAYS of plant material on site unless watering is available or weather allows.</div>
+ <div class="row">${f('stockDays','Days of stock on site','number','inputmode="decimal"')}<div></div></div>
+ <div class="row">${yn('watering','Watering available on site?')}${yn('weatherOk','Weather suitable?')}</div>
+ <div class="row">${f('gm','Growing medium depth (mm)','number','inputmode="numeric"')}${f('mulch','Mulch depth (mm)','number','inputmode="numeric"')}</div>
+ ${f('machines','Machines on site today','text','placeholder="None"')}
+ ${sn('stock')}
+</div></details>
+<details><summary>5. Daily QMP checklist <span class="st ${nDone===nChk?'done':''}">${nDone}/${nChk}</span></summary><div class="body">
+ <div class="hint">Tap once = ✓, twice = N/A, three times = clear.</div>${checksHtml}
+</div></details>
+<details><summary>6. Safety / Enviro / Quality notes <span class="st done">defaults filled</span></summary><div class="body">
+ ${NOTES.map(([k,n])=>`<label>${n}</label><textarea oninput="S.notes['${k}']=this.value;saveNow()">${esc(S.notes[k])}</textarea>`).join('')}
+ <label>Issues / delays / deficiencies (QMP sheet)</label><textarea placeholder="None" oninput="S.issues=this.value;saveNow()">${esc(S.issues)}</textarea>
+</div></details>
+<details><summary>7. Photos <span class="st" id="phst"></span></summary><div class="body">
+ <label class="primary" style="display:block;text-align:center;background:var(--brand);color:#fff;padding:14px;border-radius:9px;font-size:16px">📷 Take / add photos<input type="file" accept="image/*" multiple hidden onchange="addPhotos(this)"></label>
+ <div class="photos" id="ph"></div>
+ ${sn('photos')}
+</div></details>
+<details><summary>8. Foreman sign-off <span class="st ${S.sig?'done':''}">${S.sig?'signed':''}</span></summary><div class="body">
+ <canvas class="sig" id="sig"></canvas><div class="row" style="margin-top:8px"><button onclick="S.sig='';saveNow();render()">Clear</button><div></div></div>
+</div></details>`;
+ document.querySelectorAll('details').forEach((d,i)=>{if(open.length)d.open=open[i]});
+ drawPhotos();initSig();
+}
+function setP(n,k,v){(S.plants[n]=S.plants[n]||{})[k]=v;saveNow();let d=0;area().plants.forEach(p=>{d+=num((S.plants[p[1]]||{}).d)});document.getElementById('ptot').textContent=`Total delivered ${d}`}
+function cycS(n){const v=S.plants[n]=S.plants[n]||{};v.s=!v.s?'S':v.s==='S'?'D':'';saveNow();render()}
+function setX(n,k,v){(S.extra[n]=S.extra[n]||{})[k]=v;saveNow()}
+function cyc(id,isYN){const v=S.checks[id]||'';S.checks[id]=isYN?(v===''?'y':v==='y'?'n':''):(v===''?'y':v==='y'?'na':'');saveNow();render()}
+function tickAll(gi){CHECKS[gi][1].forEach((t,ii)=>{if(t[0]!=='*'&&!S.checks[gi+'.'+ii])S.checks[gi+'.'+ii]='y'});saveNow();render()}
+function initSig(){const c=document.getElementById('sig');if(!c)return;const r=c.getBoundingClientRect();if(!r.width)return setTimeout(initSig,300);
+ c.width=r.width*2;c.height=r.height*2;const x=c.getContext('2d');x.lineWidth=4;x.lineCap='round';x.strokeStyle='#111';
+ if(S.sig){const im=new Image();im.onload=()=>x.drawImage(im,0,0,c.width,c.height);im.src=S.sig}
+ let dn=false;const pt=e=>{const b=c.getBoundingClientRect();return[(e.clientX-b.left)*2,(e.clientY-b.top)*2]};
+ c.onpointerdown=e=>{dn=true;c.setPointerCapture(e.pointerId);x.beginPath();x.moveTo(...pt(e))};
+ c.onpointermove=e=>{if(!dn)return;x.lineTo(...pt(e));x.stroke()};
+ c.onpointerup=()=>{dn=false;S.sig=c.toDataURL('image/png');saveNow()}}
+document.addEventListener('toggle',e=>{if(e.target.open&&e.target.querySelector('#sig'))initSig()},true);
+async function newDay(){if(!confirm('Start a new day? This clears today\'s counts, checklist, notes and photos (names and area are kept).'))return;
+ const b=blank();KEEP.forEach(k=>b[k]=S[k]);S=b;PHOTOS=[];await dbClear();saveNow();render();getWx();toast('New report started')}
+
+// ---------- Excel output ----------
+const thin={style:'thin',color:{argb:'FF000000'}},BOX={top:thin,left:thin,bottom:thin,right:thin},GREY={type:'pattern',pattern:'solid',fgColor:{argb:'FFD9D9D9'}};
+function put(ws,ref,val,o={}){if(ref.includes(':'))ws.mergeCells(ref);const c=ws.getCell(ref.split(':')[0]);c.value=val;
+ c.font={name:'Calibri',size:o.size||10,bold:!!o.bold};c.alignment={vertical:o.v||'middle',horizontal:o.h||'left',wrapText:true};
+ if(o.fill)c.fill=GREY;if(o.border!==false&&o.box){const [a,b]=ref.split(':');boxRange(ws,a,b||a,o.fill)}return c}
+function boxRange(ws,a,b,fill){const A=ws.getCell(a),B=ws.getCell(b);for(let r=A.row;r<=B.row;r++)for(let c=A.col;c<=B.col;c++){const x=ws.getCell(r,c);x.border=BOX;if(fill)x.fill=GREY}}
+function fitH(ws,r,text,charsPerLine,min=15){const lines=String(text||'').split('\n').reduce((n,l)=>n+Math.max(1,Math.ceil(l.length/charsPerLine)),0);ws.getRow(r).height=Math.max(min,lines*14+4)}
+function imgAdd(wb,ws,dataUrl,col,row,w,h){const id=wb.addImage({base64:dataUrl,extension:dataUrl.startsWith('data:image/png')?'png':'jpeg'});ws.addImage(id,{tl:{col,row},ext:{width:w,height:h}})}
+const blankIf=(v,d='')=>v===''||v==null?d:v;
+
+function sheetFDR(wb){
+ const ws=wb.addWorksheet('Daily Field Report',{pageSetup:{paperSize:1,orientation:'portrait',fitToPage:true,fitToWidth:1,fitToHeight:0,margins:{left:.4,right:.4,top:.5,bottom:.5,header:.2,footer:.2}}});
+ ws.columns=[{width:26},{width:26},{width:20},{width:14},{width:26},{width:30}];
+ ws.getRow(1).height=40;put(ws,'B1:D1','Daily Field Report',{size:18,bold:true,h:'center',fill:1,box:1});put(ws,'E1:F1','KEA\nFraser Valley Connectors',{size:12,bold:true,h:'center'});
+ const L=[['Project No.',PROJECT.no],['Project Name',PROJECT.name],['Report Submitted By',S.by+' (BPL)']],R=[['Shift Date',S.date],['Shift Start/Stop (24 Hr.)',S.shift],['Work Location',S.area+(S.subArea?' - '+S.subArea:'')],['Weather (High/Low/Conditions)',`${blankIf(S.lo)}/${blankIf(S.hi)}°C ${S.cond}`]];
+ L.forEach((x,i)=>{put(ws,'A'+(i+2),x[0],{bold:1,fill:1,box:1});put(ws,'B'+(i+2),x[1],{box:1})});
+ R.forEach((x,i)=>{put(ws,'E'+(i+2),x[0],{bold:1,fill:1,box:1});put(ws,'F'+(i+2),x[1],{box:1})});
+ [['Staff Count',S.staff],['Craft Count',S.craft],['Sub Count',S.sub]].forEach((x,i)=>{put(ws,'A'+(i+6),x[0],{bold:1,fill:1,box:1});put(ws,'B'+(i+6),x[1]===''?'':num(x[1]),{box:1,h:'left'})});
+ ws.getRow(10).height=22;['Area','Sub Area','Subcontractors'].forEach((t,i)=>put(ws,'ABC'[i]+'10',t,{size:12,bold:1,fill:1,box:1}));put(ws,'D10:F10','Tasks Completed',{size:12,bold:1,fill:1,box:1});
+ const a=area(),lp=lastPct(),del=a.plants.reduce((n,p)=>n+num((S.plants[p[1]]||{}).d),0);
+ const task=S.tasks+(del?`\n- Plants delivered to site today: ${del} (see list below)`:'')+(S.pct!==''?`\n- Area planted to date: approx. ${S.pct}%`+(lp&&lp.date!==S.date?` (last report ${lp.date}: approx. ${lp.pct}%)`:''):'');
+ put(ws,'A11',S.area,{size:12,bold:1,h:'center',v:'top',box:1});put(ws,'B11',S.subArea,{v:'top',box:1});put(ws,'C11',PROJECT.sub,{size:12,bold:1,h:'center',v:'top',box:1});put(ws,'D11:F11',task,{v:'top',box:1});fitH(ws,11,task,70,60);
+ put(ws,'A12',''),boxRange(ws,'A12','C12');put(ws,'D12:F12',S.summary||'',{h:'center',box:1});fitH(ws,12,S.summary,70,40);
+ let r=13;NOTES.forEach(([k,n])=>{put(ws,`A${r}:F${r}`,n,{bold:1,fill:1,box:1});r++;put(ws,`A${r}:F${r}`,S.notes[k],{v:'top',box:1});fitH(ws,r,S.notes[k],150,20);r++});
+ const CN=[['today','Today'],['area','Area & tasks'],['plants','Plants'],['stock','Stock & site'],...CHECKS.map((c,i)=>['chk'+i,'Checklist '+c[0]]),['photos','Photos']].filter(([k])=>((S.sn||{})[k]||'').trim());
+ if(CN.length){put(ws,`A${r}:F${r}`,'Crew Notes',{bold:1,fill:1,box:1});r++;const t=CN.map(([k,n])=>`${n}: ${S.sn[k].trim()}`).join('\n');put(ws,`A${r}:F${r}`,t,{v:'top',box:1});fitH(ws,r,t,150,20);r++}
+ put(ws,`A${r}:F${r}`,'Pictures',{bold:1,fill:1,box:1,h:'center'});r+=2;
+ // plant table
+ put(ws,`A${r}:F${r}`,`${S.area}  -  Plants  -  ${S.date}`,{bold:1,h:'center'});r++;
+ ['Category','Species','NATS Size','Plan List Total','Delivered Today','Planting Status'].forEach((t,i)=>put(ws,String.fromCharCode(65+i)+r,t,{bold:1,fill:1,box:1,h:'center'}));r++;
+ a.plants.forEach(p=>{const v=S.plants[p[1]]||{};[p[0],p[1],p[3],p[4],v.d?num(v.d):'',v.s?STAT[v.s]:''].forEach((x,i)=>put(ws,String.fromCharCode(65+i)+r,x,{box:1,h:i>1?'center':'left'}));r++});
+ put(ws,`A${r}:D${r}`,'Total',{bold:1,box:1,h:'right'});put(ws,'E'+r,del,{bold:1,box:1,h:'center'});put(ws,'F'+r,S.pct!==''?`~${S.pct}% of area`:'',{bold:1,box:1,h:'center'});r+=2;
+ // photos two across
+ const colPx=[0,187,374,519,617,804],W=390;
+ for(let i=0;i<PHOTOS.length;i+=2){let hMax=0;[PHOTOS[i],PHOTOS[i+1]].forEach((p,j)=>{if(!p)return;const h=Math.round(W*p.h/p.w);hMax=Math.max(hMax,h);imgAdd(wb,ws,p.data,j?3.3:0.1,r-1,W,h)});r+=Math.ceil(hMax/20)+1}
+}
+
+function sheetQMP(wb){
+ const ws=wb.addWorksheet('Daily QMP Checksheet',{pageSetup:{paperSize:1,orientation:'portrait',fitToPage:true,fitToWidth:1,fitToHeight:1,margins:{left:.4,right:.4,top:.5,bottom:.5,header:.2,footer:.2}}});
+ ws.columns=Array.from({length:12},()=>({width:9.5}));
+ ws.getRow(1).height=30;put(ws,'A1:L1','DAILY QUALITY MANAGEMENT PLAN',{size:16,bold:1,h:'center'});
+ put(ws,'A2:B2','Project:',{bold:1,fill:1,box:1});put(ws,'C2:F2',PROJECT.qmpName,{box:1});put(ws,'G2:H2','Attention:',{bold:1,fill:1,box:1});put(ws,'I2:L2','KEA - daily submission',{box:1});
+ put(ws,'A3:B3','Date:',{bold:1,fill:1,box:1});put(ws,'C3:F3',S.date,{box:1});put(ws,'G3:H3','Item:',{bold:1,fill:1,box:1});put(ws,'I3:L3','Restoration and Landscape Planting',{box:1});
+ put(ws,'A5:B5','Date',{bold:1,fill:1,box:1});put(ws,'C5:D5',S.date,{box:1});put(ws,'E5:F5','Area(s) worked',{bold:1,fill:1,box:1});put(ws,'G5:H5',S.area+(S.subArea?' - '+S.subArea:''),{box:1});put(ws,'I5:J5','Foreman',{bold:1,fill:1,box:1});put(ws,'K5:L5',S.foreman,{box:1});
+ put(ws,'A6:B6','Crew size',{bold:1,fill:1,box:1});put(ws,'C6:D6',S.staff===''?'':num(S.staff),{box:1,h:'left'});put(ws,'E6:F6','Weather',{bold:1,fill:1,box:1});put(ws,'G6:H6',`${blankIf(S.lo)}/${blankIf(S.hi)}°C ${S.cond}`,{box:1});put(ws,'I6:J6','KEA rep',{bold:1,fill:1,box:1});put(ws,'K6:L6',S.keaRep,{box:1});
+ ws.getRow(8).height=44;put(ws,'A8:C8','PLANT MATERIAL ON SITE - HARD LIMIT',{bold:1,fill:1,box:1});put(ws,'D8:I8','No more than TWO DAYS of plant material on site at any time, unless there is watering available on site or weather conditions allow the stock to survive. Record days of stock on hand every day.',{size:9,box:1});put(ws,'J8:K8','Days of stock on site:',{bold:1,fill:1,box:1});put(ws,'L8',S.stockDays===''?'':num(S.stockDays),{box:1,h:'center',bold:1});
+ put(ws,'A9:C9','Watering available on site today?',{bold:1,fill:1,box:1});put(ws,'D9:I9',(S.watering||'YES / NO')+'   If NO, stock on site must not exceed 2 days.',{box:1});put(ws,'J9:K9','Weather suitable?',{bold:1,fill:1,box:1});put(ws,'L9',S.weatherOk||'YES / NO',{box:1,h:'center',bold:1});
+ // checklist in two columns: groups 1-2 left, 3-5 right
+ let r0=11;[['A','B:E','F'],['G','H:K','L']].forEach(([ck,tx,ini])=>{put(ws,ck+r0,'✓',{bold:1,fill:1,box:1,h:'center'});put(ws,tx.replace(':',r0+':')+r0,'Check',{bold:1,fill:1,box:1});put(ws,ini+r0,'Init.',{bold:1,fill:1,box:1,h:'center'})});
+ const sides=[[0,1],[2,3,4]];let maxR=0;
+ sides.forEach((gs,side)=>{const [ck,tx,ini]=side?['G','H:K','L']:['A','B:E','F'];let r=r0+1;
+  gs.forEach(gi=>{const [g,items]=CHECKS[gi];put(ws,`${ck}${r}:${ini}${r}`,g,{bold:1,fill:1,box:1});r++;
+   items.forEach((t,ii)=>{const v=S.checks[gi+'.'+ii]||'',isYN=t[0]==='*';
+    put(ws,ck+r,isYN?'':v==='y'?'✓':v==='na'?'N/A':'',{box:1,h:'center',bold:1,size:11});
+    put(ws,tx.replace(':',r+':')+r,isYN?`${t.slice(1)} - ${v==='y'?'YES':v==='n'?'NO':'YES / NO'}`:t,{box:1,size:9});
+    put(ws,ini+r,v&&!isYN?inits(S.foreman):'',{box:1,h:'center',size:9});ws.getRow(r).height=20;r++})});maxR=Math.max(maxR,r)});
+ // pay item table
+ let r=maxR+1;const hdr=[['A:D','Pay item'],['E:F','Area'],['G:H','Delivered today'],['I:J','Installed today'],['K:L','Notes']];
+ const cell=(rng,row,val,o)=>{const [a,b]=rng.split(':');put(ws,`${a}${row}:${b}${row}`,val,Object.assign({box:1},o))};
+ hdr.forEach(([rg,t])=>cell(rg,r,t,{bold:1,fill:1,h:'center'}));r++;
+ const pay={Conifers:[0,0],Deciduous:[0,0],Shrubs:[0,0],Emergent:[0,0]};area().plants.forEach(p=>{const v=S.plants[p[1]]||{};pay[payOf(p)][0]+=num(v.d);if(v.s)pay[payOf(p)][1]++;if(v.s!=='D')pay[payOf(p)].open=1});
+ const rows=Object.entries(pay).map(([k,x])=>[k,x[0],'',x[1]?(x.open?'Planting in progress':'Complete'):'']).concat(EXTRA.map(([k,n,u])=>{const v=S.extra[k]||{};return[n,v.d===undefined||v.d===''?'':num(v.d),v.i===undefined||v.i===''?'':num(v.i),(v.d||v.i)?u:'']}));
+ rows.forEach(([n,d,i,note])=>{const any=d||i;cell('A:D',r,n);cell('E:F',r,any?S.area:'',{size:9});cell('G:H',r,d||'',{h:'center'});cell('I:J',r,i||'',{h:'center'});cell('K:L',r,note,{size:9});r++});
+ cell('A:C',r,'Growing medium depth checked (mm)',{bold:1,fill:1,size:9});cell('D:D',r,S.gm===''?'':num(S.gm),{h:'center'});cell('E:G',r,'Mulch depth checked (mm)',{bold:1,fill:1,size:9});cell('H:H',r,S.mulch===''?'':num(S.mulch),{h:'center'});cell('I:J',r,'Machines on site today:',{bold:1,fill:1,size:9});cell('K:L',r,S.machines||'None',{size:9});ws.getRow(r).height=28;r+=2;
+ cell('A:C',r,'Issues / delays / deficiencies',{bold:1,fill:1,v:'top'});const iss=[S.issues||'None',S.pct!==''?`Area planted to date: approx. ${S.pct}%`:'',...CHECKS.map((c,i)=>(S.sn||{})['chk'+i]?c[0]+': '+S.sn['chk'+i]:''),(S.sn||{}).stock?'Stock & site: '+S.sn.stock:''].filter(Boolean).join('\n');
+ cell('D:L',r,iss,{v:'top'});fitH(ws,r,iss,90,40);r+=2;
+ cell('A:C',r,'Blue Pine foreman',{bold:1,fill:1});cell('D:G',r,S.foreman);cell('H:I',r,'Date / time',{bold:1,fill:1});cell('J:L',r,S.date+' '+new Date().toTimeString().slice(0,5));ws.getRow(r).height=46;
+ if(S.sig)imgAdd(wb,ws,S.sig,5.2,r-1,150,48);r++;
+ cell('A:C',r,'KEA representative',{bold:1,fill:1});cell('D:G',r,S.keaRep);cell('H:I',r,'Date / time',{bold:1,fill:1});cell('J:L',r,'');ws.getRow(r).height=30;
+}
+
+async function makeReport(){
+ const miss=[];if(!S.by)miss.push('Submitted by');if(S.staff==='')miss.push('Staff count');if(S.pct==='')miss.push('% of area planted');if(S.stockDays==='')miss.push('Days of stock on site');if(!S.sig)miss.push('Foreman signature');
+ if(miss.length&&!confirm('Missing: '+miss.join(', ')+'.\n\nCreate the report anyway?'))return;
+ if(typeof ExcelJS==='undefined'){toast('Needs signal the very first time to load. Try again with signal.');return}
+ toast('Building report…');try{const m=JSON.parse(localStorage.getItem('kea-last'))||{};if(S.pct!==''){m[S.area]={pct:S.pct,date:S.date};localStorage.setItem('kea-last',JSON.stringify(m))}}catch(e){}
+ const wb=new ExcelJS.Workbook();wb.creator='Blue Pine Enterprises';sheetFDR(wb);sheetQMP(wb);
+ const buf=await wb.xlsx.writeBuffer();const name=`KEA Daily Report ${S.date} ${S.area.replace(/[\/\\]/g,'-')}.xlsx`;
+ const file=new File([buf],name,{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+ const txt=`Daily Field Report + QMP checksheet - ${S.area} - ${S.date}\nSubmitted by ${S.by}`;
+ if(navigator.canShare&&navigator.canShare({files:[file]})){try{await navigator.share({files:[file],title:name,text:txt});toast('Sent');return}catch(e){if(e.name==='AbortError')return}}
+ const u=URL.createObjectURL(file),l=document.createElement('a');l.href=u;l.download=name;document.body.appendChild(l);l.click();l.remove();setTimeout(()=>URL.revokeObjectURL(u),5000);
+ setTimeout(()=>{if(confirm('Report saved to Downloads.\n\nOpen email to Ali (KEA) now? (Attach the file from Downloads.)'))location.href=`mailto:${PROJECT.email}?cc=${PROJECT.cc}&subject=${encodeURIComponent(name.replace('.xlsx',''))}&body=${encodeURIComponent(txt+'\n\n(Report attached)')}`},600);
+}
+
+(async()=>{PHOTOS=await dbAll();render();getWx();if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js')})();
+</script>
+</body>
+</html>
