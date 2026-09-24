@@ -67,6 +67,7 @@ canvas.sig{width:100%;height:150px;border:1px dashed var(--muted);border-radius:
 
 <script src="data.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 // ---------- setup ----------
 const PROJECT={no:'106064',name:'HWY 1 264th Street Intersection',qmpName:'Hwy 1 & 264th St Interchange (KEA)',sub:'Blue Pine Enterprises',email:'tim@bluepineenterprises.com',cc:''}  // TEST MODE: switch email to Aliziadezfouli.-PTR@kiewit.com, cc to tim@bluepineenterprises.com when ready;
@@ -189,7 +190,7 @@ function render(){
  ${sn('photos')}
 </div></details>
 <details><summary>8. Foreman sign-off <span class="st ${S.sig?'done':''}">${S.sig?'signed':''}</span></summary><div class="body">
- <canvas class="sig" id="sig"></canvas><div class="row" style="margin-top:8px"><button onclick="S.sig='';saveNow();render()">Clear</button><div></div></div>
+ <canvas class="sig" id="sig"></canvas><div class="row" style="margin-top:8px"><button onclick="S.sig='';saveNow();render()">Clear</button><button onclick="saveExcel()">Save Excel copy</button></div>
 </div></details>`;
  document.querySelectorAll('details').forEach((d,i)=>{if(open.length)d.open=open[i]});
  drawPhotos();initSig();
@@ -212,12 +213,46 @@ async function newDay(){if(!confirm('Start a new day? This clears today\'s count
 
 // ---------- Excel output ----------
 const thin={style:'thin',color:{argb:'FF000000'}},BOX={top:thin,left:thin,bottom:thin,right:thin},GREY={type:'pattern',pattern:'solid',fgColor:{argb:'FFD9D9D9'}};
-function put(ws,ref,val,o={}){if(ref.includes(':'))ws.mergeCells(ref);const c=ws.getCell(ref.split(':')[0]);c.value=val;
+function put(ws,ref,val,o={}){if(ref.includes(':')){ws.mergeCells(ref);(ws._m=ws._m||[]).push(ref)}const c=ws.getCell(ref.split(':')[0]);c.value=val;
  c.font={name:'Calibri',size:o.size||10,bold:!!o.bold};c.alignment={vertical:o.v||'middle',horizontal:o.h||'left',wrapText:true};
  if(o.fill)c.fill=GREY;if(o.border!==false&&o.box){const [a,b]=ref.split(':');boxRange(ws,a,b||a,o.fill)}return c}
 function boxRange(ws,a,b,fill){const A=ws.getCell(a),B=ws.getCell(b);for(let r=A.row;r<=B.row;r++)for(let c=A.col;c<=B.col;c++){const x=ws.getCell(r,c);x.border=BOX;if(fill)x.fill=GREY}}
 function fitH(ws,r,text,charsPerLine,min=15){const lines=String(text||'').split('\n').reduce((n,l)=>n+Math.max(1,Math.ceil(l.length/charsPerLine)),0);ws.getRow(r).height=Math.max(min,lines*14+4)}
-function imgAdd(wb,ws,dataUrl,col,row,w,h){const id=wb.addImage({base64:dataUrl,extension:dataUrl.startsWith('data:image/png')?'png':'jpeg'});ws.addImage(id,{tl:{col,row},ext:{width:w,height:h}})}
+function imgAdd(wb,ws,dataUrl,col,row,w,h,flow){(ws._img=ws._img||[]).push({data:dataUrl,col,row,w,h,flow});const id=wb.addImage({base64:dataUrl,extension:dataUrl.startsWith('data:image/png')?'png':'jpeg'});ws.addImage(id,{tl:{col,row},ext:{width:w,height:h}})}
+// ---------- PDF: draws each worksheet as it looks in Excel ----------
+function refRC(a){const m=a.match(/([A-Z]+)(\d+)/);let c=0;for(const ch of m[1])c=c*26+ch.charCodeAt(0)-64;return[+m[2],c]}
+function pdfSheet(doc,ws,onePage,first){
+ const PW=612,PH=792,M=28;if(!first)doc.addPage();
+ const nc=ws.columns.length,cw=ws.columns.map(c=>((c.width||9)*7+5)*.75),cx=[0];cw.forEach(w=>cx.push(cx[cx.length-1]+w));
+ const nr=ws.rowCount,rh=[0];for(let r=1;r<=nr;r++)rh.push(ws.getRow(r).height||15);
+ let k=(PW-2*M)/cx[nc];if(onePage)k=Math.min(k,(PH-2*M)/rh.reduce((a,b)=>a+b,0));
+ const span={},cov=new Set();(ws._m||[]).forEach(ref=>{const [a,b]=ref.split(':'),[r1,c1]=refRC(a),[r2,c2]=refRC(b);span[r1+','+c1]=[r2,c2];for(let r=r1;r<=r2;r++)for(let c=c1;c<=c2;c++)if(r!==r1||c!==c1)cov.add(r+','+c)});
+ const ry=[];let y=M;doc.setLineWidth(.5);doc.setDrawColor(0);
+ for(let r=1;r<=nr;r++){const h=rh[r]*k;if(!onePage&&y+h>PH-M){doc.addPage();y=M}ry[r]=y;
+  for(let c=1;c<=nc;c++){if(cov.has(r+','+c))continue;const sp=span[r+','+c]||[r,c];const x=M+cx[c-1]*k,w=(cx[sp[1]]-cx[c-1])*k;let hh=0;for(let q=r;q<=sp[0];q++)hh+=rh[q]*k;
+   const cell=ws.getRow(r).getCell(c);
+   if(cell.fill&&cell.fill.fgColor){doc.setFillColor(217,217,217);doc.rect(x,y,w,hh,'F')}
+   if(cell.border&&cell.border.top)doc.rect(x,y,w,hh,'S');
+   const v=cell.value;if(v===null||v===undefined||v==='')continue;
+   const al=cell.alignment||{},fs=((cell.font&&cell.font.size)||10)*k;
+   if(v==='✓'){const cx2=x+w/2,cy=y+hh/2,z=fs*.45;doc.setLineWidth(1.2);doc.line(cx2-z,cy,cx2-z*.3,cy+z*.7);doc.line(cx2-z*.3,cy+z*.7,cx2+z,cy-z*.8);doc.setLineWidth(.5);continue}
+   doc.setFont('helvetica',cell.font&&cell.font.bold?'bold':'normal');let f2=fs,lines,lh,th;
+   do{doc.setFontSize(f2);lines=doc.splitTextToSize(String(v),w-4);lh=f2*1.15;th=lines.length*lh;f2*=.92}while(th>hh-1&&f2>4);f2/=.92;const fs2=f2;
+   const ty=al.vertical==='top'?y+2+fs2*.85:y+(hh-th)/2+fs2*.85;
+   const opt=al.horizontal==='center'?{align:'center'}:al.horizontal==='right'?{align:'right'}:{};
+   doc.text(lines,al.horizontal==='center'?x+w/2:al.horizontal==='right'?x+w-2:x+2,ty,Object.assign({lineHeightFactor:1.15},opt))}
+  y+=h}
+ const imgs=ws._img||[],fmt=d=>d.startsWith('data:image/png')?'PNG':'JPEG';
+ imgs.filter(i=>!i.flow).forEach(i=>{const c=Math.floor(i.col),x=M+(cx[c]+(i.col-c)*cw[c])*k,yy=(ry[Math.floor(i.row)+1]||y)+2;doc.addImage(i.data,fmt(i.data),x,yy,i.w*.75*k,i.h*.75*k)});
+ const fl=imgs.filter(i=>i.flow);if(fl.length){const W=(PW-2*M-10)/2;y+=8;
+  for(let n=0;n<fl.length;n+=2){const pr=fl.slice(n,n+2),H=Math.max(...pr.map(i=>W*i.h/i.w));if(y+H>PH-M){doc.addPage();y=M}
+   pr.forEach((i,j)=>doc.addImage(i.data,fmt(i.data),M+j*(W+10),y,W,W*i.h/i.w));y+=H+10}}
+}
+function buildWb(){const wb=new ExcelJS.Workbook();wb.creator='Blue Pine Enterprises';sheetFDR(wb);sheetQMP(wb);return wb}
+function buildPdf(wb){const doc=new window.jspdf.jsPDF({unit:'pt',format:'letter'});const [a,b]=wb.worksheets;pdfSheet(doc,a,false,true);pdfSheet(doc,b,true,false);return doc.output('blob')}
+const baseName=()=>`KEA Daily Report ${S.date} ${S.area.replace(/[\/\\]/g,'-')}`;
+function dl(blob,name){const u=URL.createObjectURL(blob),l=document.createElement('a');l.href=u;l.download=name;document.body.appendChild(l);l.click();l.remove();setTimeout(()=>URL.revokeObjectURL(u),5000)}
+async function saveExcel(){if(typeof ExcelJS==='undefined')return toast('Needs signal the first time.');const buf=await buildWb().xlsx.writeBuffer();dl(new Blob([buf]),baseName()+'.xlsx');toast('Excel copy saved to Downloads')}
 const blankIf=(v,d='')=>v===''||v==null?d:v;
 
 function sheetFDR(wb){
@@ -244,7 +279,7 @@ function sheetFDR(wb){
  put(ws,`A${r}:D${r}`,'Total',{bold:1,box:1,h:'right'});put(ws,'E'+r,del,{bold:1,box:1,h:'center'});put(ws,'F'+r,S.pct!==''?`~${S.pct}% of area`:'',{bold:1,box:1,h:'center'});r+=2;
  // photos two across
  const colPx=[0,187,374,519,617,804],W=390;
- for(let i=0;i<PHOTOS.length;i+=2){let hMax=0;[PHOTOS[i],PHOTOS[i+1]].forEach((p,j)=>{if(!p)return;const h=Math.round(W*p.h/p.w);hMax=Math.max(hMax,h);imgAdd(wb,ws,p.data,j?3.3:0.1,r-1,W,h)});r+=Math.ceil(hMax/20)+1}
+ for(let i=0;i<PHOTOS.length;i+=2){let hMax=0;[PHOTOS[i],PHOTOS[i+1]].forEach((p,j)=>{if(!p)return;const h=Math.round(W*p.h/p.w);hMax=Math.max(hMax,h);imgAdd(wb,ws,p.data,j?3.3:0.1,r-1,W,h,1)});r+=Math.ceil(hMax/20)+1}
 }
 
 function sheetQMP(wb){
@@ -286,13 +321,12 @@ async function makeReport(){
  if(miss.length&&!confirm('Missing: '+miss.join(', ')+'.\n\nCreate the report anyway?'))return;
  if(typeof ExcelJS==='undefined'){toast('Needs signal the very first time to load. Try again with signal.');return}
  toast('Building report…');try{const m=JSON.parse(localStorage.getItem('kea-last'))||{};if(S.pct!==''){m[S.area]={pct:S.pct,date:S.date};localStorage.setItem('kea-last',JSON.stringify(m))}}catch(e){}
- const wb=new ExcelJS.Workbook();wb.creator='Blue Pine Enterprises';sheetFDR(wb);sheetQMP(wb);
- const buf=await wb.xlsx.writeBuffer();const name=`KEA Daily Report ${S.date} ${S.area.replace(/[\/\\]/g,'-')}.xlsx`;
- const file=new File([buf],name,{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
- const txt=`Daily Field Report + QMP checksheet - ${S.area} - ${S.date}\nSubmitted by ${S.by}`;
+ if(!window.jspdf){toast('Needs signal the very first time to load. Try again with signal.');return}
+ const name=baseName()+'.pdf',file=new File([buildPdf(buildWb())],name,{type:'application/pdf'});
+ const txt=`Daily Field Report + QMP checksheet - ${S.area} - ${S.date}\nSubmitted by ${S.by}\nSend to: ${PROJECT.email}`;
  if(navigator.canShare&&navigator.canShare({files:[file]})){try{await navigator.share({files:[file],title:name,text:txt});toast('Sent');return}catch(e){if(e.name==='AbortError')return}}
- const u=URL.createObjectURL(file),l=document.createElement('a');l.href=u;l.download=name;document.body.appendChild(l);l.click();l.remove();setTimeout(()=>URL.revokeObjectURL(u),5000);
- setTimeout(()=>{if(confirm('Report saved to Downloads.\n\nOpen email to '+PROJECT.email+' now? (Attach the file from Downloads.)'))location.href=`mailto:${PROJECT.email}?${PROJECT.cc?'cc='+PROJECT.cc+'&':''}subject=${encodeURIComponent(name.replace('.xlsx',''))}&body=${encodeURIComponent(txt+'\n\n(Report attached)')}`},600);
+ dl(file,name);
+ setTimeout(()=>{if(confirm('Report saved to Downloads.\n\nOpen email to '+PROJECT.email+' now? (Attach the file from Downloads.)'))location.href=`mailto:${PROJECT.email}?${PROJECT.cc?'cc='+PROJECT.cc+'&':''}subject=${encodeURIComponent(baseName())}&body=${encodeURIComponent(txt+'\n\n(Report attached)')}`},600);
 }
 
 (async()=>{PHOTOS=await dbAll();render();getWx();if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js')})();
