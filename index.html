@@ -277,7 +277,7 @@ function sheetFDR(wb){
  const L=[['Project No.',PROJECT.no],['Project Name',PROJECT.name],['Report Submitted By',S.by+' (BPL)']],R=[['Shift Date',S.date],['Shift Start/Stop (24 Hr.)',S.shift],['Work Location',S.area+(S.subArea?' - '+S.subArea:'')],['Weather (High/Low/Conditions)',`${blankIf(S.lo)}/${blankIf(S.hi)}°C ${S.cond}`]];
  L.forEach((x,i)=>{put(ws,'A'+(i+2),x[0],{bold:1,fill:1,box:1});put(ws,'B'+(i+2),x[1],{box:1})});
  R.forEach((x,i)=>{put(ws,'E'+(i+2),x[0],{bold:1,fill:1,box:1});put(ws,'F'+(i+2),x[1],{box:1})});
- [['Staff Count',S.staff],['Craft Count',S.craft],['Sub Count',S.sub]].forEach((x,i)=>{put(ws,'A'+(i+6),x[0],{bold:1,fill:1,box:1});put(ws,'B'+(i+6),x[1]===''?'':num(x[1]),{box:1,h:'left'})});
+ [['Staff Count',S.staff]].forEach((x,i)=>{put(ws,'A'+(i+6),x[0],{bold:1,fill:1,box:1});put(ws,'B'+(i+6),x[1]===''?'':num(x[1]),{box:1,h:'left'})});
  ws.getRow(10).height=22;['Area','Sub Area','Subcontractors'].forEach((t,i)=>put(ws,'ABC'[i]+'10',t,{size:12,bold:1,fill:1,box:1}));put(ws,'D10:F10','Tasks Completed',{size:12,bold:1,fill:1,box:1});
  const a=area(),lp=lastPct(),del=a.plants.reduce((n,p)=>n+num((S.plants[p[1]]||{}).d),0);
  const task=S.tasks+(del?`\n- Plants delivered to site today: ${del} (see list below)`:'')+(S.pct!==''?`\n- Area planted to date: approx. ${S.pct}%`+(lp&&lp.date!==S.date?` (last report ${lp.date}: approx. ${lp.pct}%)`:''):'');
