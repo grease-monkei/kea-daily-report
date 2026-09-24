@@ -46,7 +46,10 @@ button.primary{background:var(--brand);color:#fff;border-color:var(--brand);font
 .chk .box.y{background:var(--ok);color:#fff;border-color:var(--ok)}
 .chk .box.na{background:#e6e8e7;color:var(--na)}
 .chk .box.no{background:var(--warn);color:#fff;border-color:var(--warn)}
-.chk .tx{font-size:15px}
+.chk .tx{font-size:15px;flex:1}
+.chk .nb{flex:0 0 auto;padding:6px 9px;font-size:13px;color:var(--muted)}
+.chk .nb.on{background:#fff4e5;border-color:var(--warn);color:var(--warn);font-weight:700}
+.cnote{margin:0 0 8px 62px;width:calc(100% - 62px);min-height:52px;border-color:var(--warn)}
 .hint{font-size:13px;color:var(--muted);margin:6px 0}
 .photos{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
 .photos div{position:relative}
@@ -90,7 +93,7 @@ const EXTRA=[['bark_blown','Bark - blown in','m³'],['bark_machine','Bark - mach
 const KEEP=['by','foreman','keaRep','area','shift'];
 
 function blank(){return{date:new Date().toLocaleDateString('en-CA'),shift:'Day Shift',by:'',foreman:'',initials:'',keaRep:'Ali Ziadezfouli',hi:'',lo:'',cond:'',staff:'',craft:'',sub:'',area:AREAS[0].name,subArea:'',
- tasks:'Planting Environmental Restoration & Compensation Areas:',plants:{},extra:{},stockDays:'',watering:'',weatherOk:'',checks:{},gm:'',mulch:'',machines:'',issues:'',pct:'',sn:{},
+ tasks:'Planting Environmental Restoration & Compensation Areas:',plants:{},extra:{},stockDays:'',watering:'',weatherOk:'',checks:{},gm:'',mulch:'',machines:'',issues:'',pct:'',sn:{},cn:{},
  notes:Object.fromEntries(NOTES.map(n=>[n[0],n[2]])),sig:''}}
 let S=load()||blank(), PHOTOS=[];
 function load(){try{return JSON.parse(localStorage.getItem('kea-draft'))}catch(e){return null}}
@@ -109,6 +112,9 @@ async function getWx(force){if(!force&&S.wxDate===S.date)return;const st=documen
   S.wxDate=S.date;S.wxSrc='Auto-filled '+new Date().toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})+' (Open-Meteo). Edit if it looks wrong.';saveNow();render()}
  catch(e){if(st)st.textContent='No signal - weather not updated. Type it in or tap Update later.'}}
 const inits=n=>String(n||'').trim().split(/\s+/).map(w=>w[0]||'').join('').toUpperCase();
+const OPENN=new Set(),cnote=id=>((S.cn||{})[id]||'').trim();
+function togN(id){if(OPENN.has(id)&&!cnote(id))OPENN.delete(id);else OPENN.add(id);render();const t=document.getElementById('cn-'+id);if(t&&!cnote(id))t.focus()}
+function itemNotes(){const o=[];CHECKS.forEach(([g,items],gi)=>items.forEach((t,ii)=>{const n=cnote(gi+'.'+ii);if(n)o.push(`* ${t.replace(/^\*/,'')}: ${n}`)}));return o}
 const area=()=>AREAS.find(a=>a.name===S.area)||AREAS[0];
 const num=v=>{const n=parseFloat(v);return isNaN(n)?0:n};
 function payOf(p){if(p[0]==='Trees')return CONIFERS.includes(p[1])?'Conifers':'Deciduous';return /P$/.test(p[3])&&p[3]==='50P'?'Emergent':'Shrubs'}
@@ -134,7 +140,8 @@ function render(){
  CHECKS.forEach(([g,items],gi)=>{checksHtml+=`<div class="grp">${g}<button onclick="tickAll(${gi})">Tick all ✓</button></div>`;
   items.forEach((t,ii)=>{const id=gi+'.'+ii,v=S.checks[id]||'',isYN=t[0]==='*';nChk++;if(v)nDone++;
    const lbl=isYN?(v==='y'?'YES':v==='n'?'NO':''):(v==='y'?'✓':v==='na'?'N/A':'');
-   checksHtml+=`<div class="chk" onclick="cyc('${id}',${isYN})"><div class="box ${v==='y'?(isYN?'no':'y'):v==='n'?'y':v}">${lbl}</div><div class="tx">${esc(isYN?t.slice(1)+' (tap: YES / NO)':t)}</div></div>`});checksHtml+=sn('chk'+gi)});
+   checksHtml+=`<div class="chk" onclick="cyc('${id}',${isYN})"><div class="box ${v==='y'?(isYN?'no':'y'):v==='n'?'y':v}">${lbl}</div><div class="tx">${esc(isYN?t.slice(1)+' (tap: YES / NO)':t)}</div><button class="nb ${cnote(id)?'on':''}" onclick="event.stopPropagation();togN('${id}')">${cnote(id)?'✎ Note':'+ Note'}</button></div>`;
+   if(OPENN.has(id)||cnote(id))checksHtml+=`<textarea class="cnote" id="cn-${id}" placeholder="Describe the problem or concern" oninput="(S.cn=S.cn||{})['${id}']=this.value;saveNow()">${esc(cnote(id))}</textarea>`});checksHtml+=sn('chk'+gi)});
  let plantHtml='<div class="phead"><span>Species</span><span>Delivered</span><span>Planting</span></div>',td=0;
  a.plants.forEach(p=>{const v=S.plants[p[1]]||{};td+=num(v.d);
   plantHtml+=`<div class="plant"><div class="nm">${esc(p[1])}<small>${p[3]} · plan ${p[4]} · ${payOf(p)}</small></div><input inputmode="numeric" value="${esc(v.d)}" oninput="setP('${esc(p[1])}','d',this.value)"><button class="${v.s==='D'?'on':v.s==='S'?'mid':''}" style="padding:9px 2px;font-size:13px" onclick="cycS('${esc(p[1])}')">${STAT[v.s||'']}</button></div>`});
@@ -270,7 +277,7 @@ function sheetFDR(wb){
  put(ws,'A12',''),boxRange(ws,'A12','C12');put(ws,'D12:F12',S.summary||'',{h:'center',box:1});fitH(ws,12,S.summary,70,40);
  let r=13;NOTES.forEach(([k,n])=>{put(ws,`A${r}:F${r}`,n,{bold:1,fill:1,box:1});r++;put(ws,`A${r}:F${r}`,S.notes[k],{v:'top',box:1});fitH(ws,r,S.notes[k],150,20);r++});
  const CN=[['today','Today'],['area','Area & tasks'],['plants','Plants'],['stock','Stock & site'],...CHECKS.map((c,i)=>['chk'+i,'Checklist '+c[0]]),['photos','Photos']].filter(([k])=>((S.sn||{})[k]||'').trim());
- if(CN.length){put(ws,`A${r}:F${r}`,'Crew Notes',{bold:1,fill:1,box:1});r++;const t=CN.map(([k,n])=>`${n}: ${S.sn[k].trim()}`).join('\n');put(ws,`A${r}:F${r}`,t,{v:'top',box:1});fitH(ws,r,t,150,20);r++}
+ const IN=itemNotes();if(CN.length||IN.length){put(ws,`A${r}:F${r}`,'Crew Notes',{bold:1,fill:1,box:1});r++;const t=CN.map(([k,n])=>`${n}: ${S.sn[k].trim()}`).concat(IN.length?['Checklist item notes:',...IN]:[]).join('\n');put(ws,`A${r}:F${r}`,t,{v:'top',box:1});fitH(ws,r,t,150,20);r++}
  put(ws,`A${r}:F${r}`,'Pictures',{bold:1,fill:1,box:1,h:'center'});r+=2;
  // plant table
  put(ws,`A${r}:F${r}`,`${S.area}  -  Plants  -  ${S.date}`,{bold:1,h:'center'});r++;
@@ -299,7 +306,7 @@ function sheetQMP(wb){
   gs.forEach(gi=>{const [g,items]=CHECKS[gi];put(ws,`${ck}${r}:${ini}${r}`,g,{bold:1,fill:1,box:1});r++;
    items.forEach((t,ii)=>{const v=S.checks[gi+'.'+ii]||'',isYN=t[0]==='*';
     put(ws,ck+r,isYN?'':v==='y'?'✓':v==='na'?'N/A':'',{box:1,h:'center',bold:1,size:11});
-    put(ws,tx.replace(':',r+':')+r,isYN?`${t.slice(1)} - ${v==='y'?'YES':v==='n'?'NO':'YES / NO'}`:t,{box:1,size:9});
+    put(ws,tx.replace(':',r+':')+r,(isYN?`${t.slice(1)} - ${v==='y'?'YES':v==='n'?'NO':'YES / NO'}`:t)+(cnote(gi+'.'+ii)?'  * see note':''),{box:1,size:9,bold:!!cnote(gi+'.'+ii)});
     put(ws,ini+r,v&&!isYN?inits(S.foreman):'',{box:1,h:'center',size:9});ws.getRow(r).height=20;r++})});maxR=Math.max(maxR,r)});
  // pay item table
  let r=maxR+1;const hdr=[['A:D','Pay item'],['E:F','Area'],['G:H','Delivered today'],['I:J','Installed today'],['K:L','Notes']];
@@ -309,7 +316,7 @@ function sheetQMP(wb){
  const rows=Object.entries(pay).map(([k,x])=>[k,x[0],'',x[1]?(x.open?'Planting in progress':'Complete'):'']).concat(EXTRA.map(([k,n,u])=>{const v=S.extra[k]||{};return[n,v.d===undefined||v.d===''?'':num(v.d),v.i===undefined||v.i===''?'':num(v.i),(v.d||v.i)?u:'']}));
  rows.forEach(([n,d,i,note])=>{const any=d||i;cell('A:D',r,n);cell('E:F',r,any?S.area:'',{size:9});cell('G:H',r,d||'',{h:'center'});cell('I:J',r,i||'',{h:'center'});cell('K:L',r,note,{size:9});r++});
  cell('A:C',r,'Growing medium depth checked (mm)',{bold:1,fill:1,size:9});cell('D:D',r,S.gm===''?'':num(S.gm),{h:'center'});cell('E:G',r,'Mulch depth checked (mm)',{bold:1,fill:1,size:9});cell('H:H',r,S.mulch===''?'':num(S.mulch),{h:'center'});cell('I:J',r,'Machines on site today:',{bold:1,fill:1,size:9});cell('K:L',r,S.machines||'None',{size:9});ws.getRow(r).height=28;r+=2;
- cell('A:C',r,'Issues / delays / deficiencies',{bold:1,fill:1,v:'top'});const iss=[S.issues||'None',S.pct!==''?`Area planted to date: approx. ${S.pct}%`:'',...CHECKS.map((c,i)=>(S.sn||{})['chk'+i]?c[0]+': '+S.sn['chk'+i]:''),(S.sn||{}).stock?'Stock & site: '+S.sn.stock:''].filter(Boolean).join('\n');
+ cell('A:C',r,'Issues / delays / deficiencies',{bold:1,fill:1,v:'top'});const iss=[S.issues||(itemNotes().length?'':'None'),...itemNotes(),S.pct!==''?`Area planted to date: approx. ${S.pct}%`:'',...CHECKS.map((c,i)=>(S.sn||{})['chk'+i]?c[0]+': '+S.sn['chk'+i]:''),(S.sn||{}).stock?'Stock & site: '+S.sn.stock:''].filter(Boolean).join('\n');
  cell('D:L',r,iss,{v:'top'});fitH(ws,r,iss,90,40);r+=2;
  cell('A:C',r,'Blue Pine foreman',{bold:1,fill:1});cell('D:G',r,S.foreman);cell('H:I',r,'Date / time',{bold:1,fill:1});cell('J:L',r,S.date+' '+new Date().toTimeString().slice(0,5));ws.getRow(r).height=46;
  if(S.sig)imgAdd(wb,ws,S.sig,5.2,r-1,150,48);r++;
