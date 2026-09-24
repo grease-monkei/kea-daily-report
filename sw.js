@@ -1,5 +1,5 @@
 // Offline cache: app files + ExcelJS. Bump VERSION when the app changes.
-const VERSION='kea-v3';
+const VERSION='kea-v4';
 const FILES=['./','index.html','data.js','manifest.webmanifest','icon-192.png','icon-512.png','https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(VERSION).then(c=>c.addAll(FILES)));self.skipWaiting()});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x!==VERSION).map(x=>caches.delete(x)))));self.clients.claim()});

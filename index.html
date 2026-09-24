@@ -69,7 +69,7 @@ canvas.sig{width:100%;height:150px;border:1px dashed var(--muted);border-radius:
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script>
 // ---------- setup ----------
-const PROJECT={no:'106064',name:'HWY 1 264th Street Intersection',qmpName:'Hwy 1 & 264th St Interchange (KEA)',sub:'Blue Pine Enterprises',email:'Aliziadezfouli.-PTR@kiewit.com',cc:'tim@bluepineenterprises.com'};
+const PROJECT={no:'106064',name:'HWY 1 264th Street Intersection',qmpName:'Hwy 1 & 264th St Interchange (KEA)',sub:'Blue Pine Enterprises',email:'tim@bluepineenterprises.com',cc:''}  // TEST MODE: switch email to Aliziadezfouli.-PTR@kiewit.com, cc to tim@bluepineenterprises.com when ready;
 const CONIFERS=['Grand Fir','Sitka Spruce','Douglas Fir','Western Red Cedar','Western Hemlock','Shore Pine'];
 const NOTES=[
  ['traffic','Traffic Control','N/A'],
@@ -292,7 +292,7 @@ async function makeReport(){
  const txt=`Daily Field Report + QMP checksheet - ${S.area} - ${S.date}\nSubmitted by ${S.by}`;
  if(navigator.canShare&&navigator.canShare({files:[file]})){try{await navigator.share({files:[file],title:name,text:txt});toast('Sent');return}catch(e){if(e.name==='AbortError')return}}
  const u=URL.createObjectURL(file),l=document.createElement('a');l.href=u;l.download=name;document.body.appendChild(l);l.click();l.remove();setTimeout(()=>URL.revokeObjectURL(u),5000);
- setTimeout(()=>{if(confirm('Report saved to Downloads.\n\nOpen email to Ali (KEA) now? (Attach the file from Downloads.)'))location.href=`mailto:${PROJECT.email}?cc=${PROJECT.cc}&subject=${encodeURIComponent(name.replace('.xlsx',''))}&body=${encodeURIComponent(txt+'\n\n(Report attached)')}`},600);
+ setTimeout(()=>{if(confirm('Report saved to Downloads.\n\nOpen email to '+PROJECT.email+' now? (Attach the file from Downloads.)'))location.href=`mailto:${PROJECT.email}?${PROJECT.cc?'cc='+PROJECT.cc+'&':''}subject=${encodeURIComponent(name.replace('.xlsx',''))}&body=${encodeURIComponent(txt+'\n\n(Report attached)')}`},600);
 }
 
 (async()=>{PHOTOS=await dbAll();render();getWx();if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js')})();
