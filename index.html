@@ -93,7 +93,7 @@ const EXTRA=[['bark_blown','Bark - blown in','m³'],['bark_machine','Bark - mach
 const KEEP=['by','foreman','keaRep','area','shift'];
 
 function blank(){return{date:new Date().toLocaleDateString('en-CA'),shift:'Day Shift',by:'',foreman:'',initials:'',keaRep:'Ali Ziadezfouli',hi:'',lo:'',cond:'',staff:'',craft:'',sub:'',area:AREAS[0].name,subArea:'',
- tasks:'Planting Environmental Restoration & Compensation Areas:',plants:{},extra:{},stockDays:'',watering:'',weatherOk:'',checks:{},gm:'',mulch:'',machines:'',issues:'',pct:'',sn:{},cn:{},
+ tasks:'Planting Environmental Restoration & Compensation Areas:',plants:{},extra:{},stockDays:'',watering:'',weatherOk:'',checks:{},gm:'',mulch:'',machines:'',issues:'',pct:'',sn:{},cn:{},gps:[],
  notes:Object.fromEntries(NOTES.map(n=>[n[0],n[2]])),sig:''}}
 let S=load()||blank(), PHOTOS=[];
 function load(){try{return JSON.parse(localStorage.getItem('kea-draft'))}catch(e){return null}}
@@ -115,6 +115,10 @@ const inits=n=>String(n||'').trim().split(/\s+/).map(w=>w[0]||'').join('').toUpp
 const OPENN=new Set(),cnote=id=>((S.cn||{})[id]||'').trim();
 function togN(id){if(OPENN.has(id)&&!cnote(id))OPENN.delete(id);else OPENN.add(id);render();const t=document.getElementById('cn-'+id);if(t&&!cnote(id))t.focus()}
 function itemNotes(){const o=[];CHECKS.forEach(([g,items],gi)=>items.forEach((t,ii)=>{const n=cnote(gi+'.'+ii);if(n)o.push(`* ${t.replace(/^\*/,'')}: ${n}`)}));return o}
+const mapUrl=g=>`https://maps.google.com/?q=${g.lat.toFixed(6)},${g.lon.toFixed(6)}`;
+function markGps(b){if(!navigator.geolocation)return toast('This phone has no GPS access');b.disabled=true;b.textContent='Getting location… (stand still)';
+ navigator.geolocation.getCurrentPosition(p=>{(S.gps=S.gps||[]).push({lat:p.coords.latitude,lon:p.coords.longitude,acc:Math.round(p.coords.accuracy),time:new Date().toTimeString().slice(0,5),label:''});saveNow();render();toast('Location marked (±'+Math.round(p.coords.accuracy)+' m)')},
+  e=>{b.disabled=false;render();toast(e.code===1?'Location blocked - allow location for this app in Chrome settings':'Could not get location - try again in the open')},{enableHighAccuracy:true,timeout:30000,maximumAge:0})}
 const area=()=>AREAS.find(a=>a.name===S.area)||AREAS[0];
 const num=v=>{const n=parseFloat(v);return isNaN(n)?0:n};
 function payOf(p){if(p[0]==='Trees')return CONIFERS.includes(p[1])?'Conifers':'Deciduous';return /P$/.test(p[3])&&p[3]==='50P'?'Emergent':'Shrubs'}
@@ -165,6 +169,9 @@ function render(){
  ${f('subArea','Sub area (optional)','text')}
  <label>Tasks completed</label><textarea oninput="S.tasks=this.value;saveNow()">${esc(S.tasks)}</textarea>
  <label>Summary of today's work</label><textarea placeholder="e.g. Finished layout / Planted along the north side" oninput="S.summary=this.value;saveNow()">${esc(S.summary)}</textarea>
+ <div class="grp">GPS location of work area</div>
+ ${(S.gps||[]).map((g,i)=>`<div class="plant" style="grid-template-columns:1fr 60px"><div class="nm"><input value="${esc(g.label)}" placeholder="Label (optional) e.g. North edge" oninput="S.gps[${i}].label=this.value;saveNow()" style="padding:8px"><small><a href="${mapUrl(g)}" target="_blank">${g.lat.toFixed(5)}, ${g.lon.toFixed(5)}</a> · ±${g.acc} m · ${esc(g.time)}</small></div><button onclick="S.gps.splice(${i},1);saveNow();render()">✕</button></div>`).join('')}
+ <button style="width:100%;margin-top:8px" onclick="markGps(this)">📍 Mark GPS location${(S.gps||[]).length?' (add another)':''}</button>
  ${sn('area')}
 </div></details>
 <details><summary>3. Plants <span class="st ${S.pct!==''?'done':''}">${S.pct!==''?'~'+S.pct+'% planted':''}</span></summary><div class="body">
@@ -240,13 +247,14 @@ function pdfSheet(doc,ws,onePage,first){
    const cell=ws.getRow(r).getCell(c);
    if(cell.fill&&cell.fill.fgColor){doc.setFillColor(217,217,217);doc.rect(x,y,w,hh,'F')}
    if(cell.border&&cell.border.top)doc.rect(x,y,w,hh,'S');
-   const v=cell.value;if(v===null||v===undefined||v==='')continue;
+   let v=cell.value;if(v===null||v===undefined||v==='')continue;const url=v&&v.hyperlink;if(url)v=v.text;
    const al=cell.alignment||{},fs=((cell.font&&cell.font.size)||10)*k;
    if(v==='✓'){const cx2=x+w/2,cy=y+hh/2,z=fs*.45;doc.setLineWidth(1.2);doc.line(cx2-z,cy,cx2-z*.3,cy+z*.7);doc.line(cx2-z*.3,cy+z*.7,cx2+z,cy-z*.8);doc.setLineWidth(.5);continue}
    doc.setFont('helvetica',cell.font&&cell.font.bold?'bold':'normal');let f2=fs,lines,lh,th;
    do{doc.setFontSize(f2);lines=doc.splitTextToSize(String(v),w-4);lh=f2*1.15;th=lines.length*lh;f2*=.92}while(th>hh-1&&f2>4);f2/=.92;const fs2=f2;
    const ty=al.vertical==='top'?y+2+fs2*.85:y+(hh-th)/2+fs2*.85;
    const opt=al.horizontal==='center'?{align:'center'}:al.horizontal==='right'?{align:'right'}:{};
+   if(url){doc.setTextColor(5,99,193);doc.textWithLink(lines.join(' '),x+2,ty,{url});doc.setTextColor(0,0,0)}else
    doc.text(lines,al.horizontal==='center'?x+w/2:al.horizontal==='right'?x+w-2:x+2,ty,Object.assign({lineHeightFactor:1.15},opt))}
   y+=h}
  const imgs=ws._img||[],fmt=d=>d.startsWith('data:image/png')?'PNG':'JPEG';
@@ -278,6 +286,8 @@ function sheetFDR(wb){
  let r=13;NOTES.forEach(([k,n])=>{put(ws,`A${r}:F${r}`,n,{bold:1,fill:1,box:1});r++;put(ws,`A${r}:F${r}`,S.notes[k],{v:'top',box:1});fitH(ws,r,S.notes[k],150,20);r++});
  const CN=[['today','Today'],['area','Area & tasks'],['plants','Plants'],['stock','Stock & site'],...CHECKS.map((c,i)=>['chk'+i,'Checklist '+c[0]]),['photos','Photos']].filter(([k])=>((S.sn||{})[k]||'').trim());
  const IN=itemNotes();if(CN.length||IN.length){put(ws,`A${r}:F${r}`,'Crew Notes',{bold:1,fill:1,box:1});r++;const t=CN.map(([k,n])=>`${n}: ${S.sn[k].trim()}`).concat(IN.length?['Checklist item notes:',...IN]:[]).join('\n');put(ws,`A${r}:F${r}`,t,{v:'top',box:1});fitH(ws,r,t,150,20);r++}
+ if((S.gps||[]).length){put(ws,`A${r}:F${r}`,'GPS Location(s) - tap to open map',{bold:1,fill:1,box:1});r++;
+  S.gps.forEach(g=>{put(ws,`A${r}:F${r}`,{text:`${g.label?g.label+' - ':''}${g.lat.toFixed(5)}, ${g.lon.toFixed(5)}  (±${g.acc} m, ${g.time})`,hyperlink:mapUrl(g)},{box:1});ws.getCell('A'+r).font={name:'Calibri',size:10,color:{argb:'FF0563C1'},underline:true};r++})}
  put(ws,`A${r}:F${r}`,'Pictures',{bold:1,fill:1,box:1,h:'center'});r+=2;
  // plant table
  put(ws,`A${r}:F${r}`,`${S.area}  -  Plants  -  ${S.date}`,{bold:1,h:'center'});r++;
