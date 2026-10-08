@@ -92,7 +92,7 @@ const CHECKS=[
 const EXTRA=[['bark_blown','Bark - blown in','m³'],['bark_machine','Bark - machine placed','m³'],['seed','Broadcast seed','m²'],['staking','Extra #5 pot staking','ea']];
 const KEEP=['by','foreman','keaRep','area','shift'];
 
-function blank(){return{date:new Date().toLocaleDateString('en-CA'),shift:'Day Shift',by:'',foreman:'',initials:'',keaRep:'Ali Ziadezfouli',hi:'',lo:'',cond:'',staff:'',craft:'',sub:'',area:AREAS[0].name,subArea:'',
+function blank(){return{date:new Date().toLocaleDateString('en-CA'),shift:'Day Shift',by:'',foreman:'',initials:'',keaRep:'Ali Ziadezfouli',hi:'',lo:'',cond:'',staff:'',craft:'',sub:'',area:AREAS[0].name,ptype:'Trees & Shrubs',subArea:'',
  tasks:'Planting Environmental Restoration & Compensation Areas:',plants:{},extra:{},stockDays:'',watering:'',weatherOk:'',checks:{},gm:'',mulch:'',machines:'',issues:'',pct:'',sn:{},cn:{},gps:[],
  notes:Object.fromEntries(NOTES.map(n=>[n[0],n[2]])),sig:''}}
 let S=load()||blank(), PHOTOS=[];
@@ -119,7 +119,8 @@ const mapUrl=g=>`https://maps.google.com/?q=${g.lat.toFixed(6)},${g.lon.toFixed(
 function markGps(b){if(!navigator.geolocation)return toast('This phone has no GPS access');b.disabled=true;b.textContent='Getting location… (stand still)';
  navigator.geolocation.getCurrentPosition(p=>{(S.gps=S.gps||[]).push({lat:p.coords.latitude,lon:p.coords.longitude,acc:Math.round(p.coords.accuracy),time:new Date().toTimeString().slice(0,5),label:''});saveNow();render();toast('Location marked (±'+Math.round(p.coords.accuracy)+' m)')},
   e=>{b.disabled=false;render();toast(e.code===1?'Location blocked - allow location for this app in Chrome settings':'Could not get location - try again in the open')},{enableHighAccuracy:true,timeout:30000,maximumAge:0})}
-const area=()=>AREAS.find(a=>a.name===S.area)||AREAS[0];
+const baseArea=()=>AREAS.find(a=>a.name===S.area)||AREAS[0];
+const area=()=>{const a=baseArea();return S.ptype==='Emergent'?{...a,plants:EMERGENT}:a};
 const num=v=>{const n=parseFloat(v);return isNaN(n)?0:n};
 function payOf(p){if(p[0]==='Trees')return CONIFERS.includes(p[1])?'Conifers':'Deciduous';return /P$/.test(p[3])&&p[3]==='50P'?'Emergent':'Shrubs'}
 
@@ -148,7 +149,7 @@ function render(){
    if(OPENN.has(id)||cnote(id))checksHtml+=`<textarea class="cnote" id="cn-${id}" placeholder="Describe the problem or concern" oninput="(S.cn=S.cn||{})['${id}']=this.value;saveNow()">${esc(cnote(id))}</textarea>`});checksHtml+=sn('chk'+gi)});
  let plantHtml='<div class="phead"><span>Species</span><span>Delivered</span><span>Planting</span></div>',td=0;
  a.plants.forEach(p=>{const v=S.plants[p[1]]||{};td+=num(v.d);
-  plantHtml+=`<div class="plant"><div class="nm">${esc(p[1])}<small>${p[3]} · plan ${p[4]} · ${payOf(p)}</small></div><input inputmode="numeric" value="${esc(v.d)}" oninput="setP('${esc(p[1])}','d',this.value)"><button class="${v.s==='D'?'on':v.s==='S'?'mid':''}" style="padding:9px 2px;font-size:13px" onclick="cycS('${esc(p[1])}')">${STAT[v.s||'']}</button></div>`});
+  plantHtml+=`<div class="plant"><div class="nm">${esc(p[1])}<small>${p[3]}${p[4]!==''?' · plan '+p[4]:''} · ${payOf(p)}</small></div><input inputmode="numeric" value="${esc(v.d)}" oninput="setP('${esc(p[1])}','d',this.value)"><button class="${v.s==='D'?'on':v.s==='S'?'mid':''}" style="padding:9px 2px;font-size:13px" onclick="cycS('${esc(p[1])}')">${STAT[v.s||'']}</button></div>`});
  let extraHtml='<div class="phead"><span>Item</span><span>Delivered</span><span>Installed</span></div>';
  EXTRA.forEach(([k,n,u])=>{const v=S.extra[k]||{};extraHtml+=`<div class="plant"><div class="nm">${n}<small>${u}</small></div><input inputmode="decimal" value="${esc(v.d)}" oninput="setX('${k}','d',this.value)"><input inputmode="decimal" value="${esc(v.i)}" oninput="setX('${k}','i',this.value)"></div>`});
  document.getElementById('app').innerHTML=`
@@ -166,6 +167,7 @@ function render(){
 <details><summary>2. Area &amp; tasks <span class="st done">${esc(S.area)}</span></summary><div class="body">
  <label>Area worked</label><select onchange="S.area=this.value;saveNow();render()">${AREAS.map(x=>`<option ${x.name===S.area?'selected':''}>${esc(x.name)}</option>`).join('')}</select>
  <div class="hint">${esc(a.info)}</div>
+ <label>Planting type</label><select onchange="S.ptype=this.value;saveNow();render()">${PTYPES.map(o=>`<option ${(S.ptype||PTYPES[0])===o?'selected':''}>${o}</option>`).join('')}</select>
  ${f('subArea','Sub area (optional)','text')}
  <label>Tasks completed</label><textarea oninput="S.tasks=this.value;saveNow()">${esc(S.tasks)}</textarea>
  <label>Summary of today's work</label><textarea placeholder="e.g. Finished layout / Planted along the north side" oninput="S.summary=this.value;saveNow()">${esc(S.summary)}</textarea>
@@ -274,7 +276,7 @@ function sheetFDR(wb){
  const ws=wb.addWorksheet('Daily Field Report',{pageSetup:{paperSize:1,orientation:'portrait',fitToPage:true,fitToWidth:1,fitToHeight:0,margins:{left:.4,right:.4,top:.5,bottom:.5,header:.2,footer:.2}}});
  ws.columns=[{width:26},{width:26},{width:20},{width:14},{width:26},{width:30}];
  ws.getRow(1).height=40;put(ws,'B1:D1','Daily Field Report',{size:18,bold:true,h:'center',fill:1,box:1});put(ws,'E1:F1','KEA\nFraser Valley Connectors',{size:12,bold:true,h:'center'});
- const L=[['Project No.',PROJECT.no],['Project Name',PROJECT.name],['Report Submitted By',S.by+' (BPL)']],R=[['Shift Date',S.date],['Shift Start/Stop (24 Hr.)',S.shift],['Work Location',S.area+(S.subArea?' - '+S.subArea:'')],['Weather (High/Low/Conditions)',`${blankIf(S.lo)}/${blankIf(S.hi)}°C ${S.cond}`]];
+ const L=[['Project No.',PROJECT.no],['Project Name',PROJECT.name],['Report Submitted By',S.by+' (BPL)']],R=[['Shift Date',S.date],['Shift Start/Stop (24 Hr.)',S.shift],['Work Location',S.area+(S.ptype==='Emergent'?' - Emergent':'')+(S.subArea?' - '+S.subArea:'')],['Weather (High/Low/Conditions)',`${blankIf(S.lo)}/${blankIf(S.hi)}°C ${S.cond}`]];
  L.forEach((x,i)=>{put(ws,'A'+(i+2),x[0],{bold:1,fill:1,box:1});put(ws,'B'+(i+2),x[1],{box:1})});
  R.forEach((x,i)=>{put(ws,'E'+(i+2),x[0],{bold:1,fill:1,box:1});put(ws,'F'+(i+2),x[1],{box:1})});
  [['Staff Count',S.staff]].forEach((x,i)=>{put(ws,'A'+(i+6),x[0],{bold:1,fill:1,box:1});put(ws,'B'+(i+6),x[1]===''?'':num(x[1]),{box:1,h:'left'})});
@@ -305,7 +307,7 @@ function sheetQMP(wb){
  ws.getRow(1).height=30;put(ws,'A1:L1','DAILY QUALITY MANAGEMENT PLAN',{size:16,bold:1,h:'center'});
  put(ws,'A2:B2','Project:',{bold:1,fill:1,box:1});put(ws,'C2:F2',PROJECT.qmpName,{box:1});put(ws,'G2:H2','Attention:',{bold:1,fill:1,box:1});put(ws,'I2:L2','KEA - daily submission',{box:1});
  put(ws,'A3:B3','Date:',{bold:1,fill:1,box:1});put(ws,'C3:F3',S.date,{box:1});put(ws,'G3:H3','Item:',{bold:1,fill:1,box:1});put(ws,'I3:L3','Restoration and Landscape Planting',{box:1});
- put(ws,'A5:B5','Date',{bold:1,fill:1,box:1});put(ws,'C5:D5',S.date,{box:1});put(ws,'E5:F5','Area(s) worked',{bold:1,fill:1,box:1});put(ws,'G5:H5',S.area+(S.subArea?' - '+S.subArea:''),{box:1});put(ws,'I5:J5','Foreman',{bold:1,fill:1,box:1});put(ws,'K5:L5',S.foreman,{box:1});
+ put(ws,'A5:B5','Date',{bold:1,fill:1,box:1});put(ws,'C5:D5',S.date,{box:1});put(ws,'E5:F5','Area(s) worked',{bold:1,fill:1,box:1});put(ws,'G5:H5',S.area+(S.ptype==='Emergent'?' - Emergent':'')+(S.subArea?' - '+S.subArea:''),{box:1});put(ws,'I5:J5','Foreman',{bold:1,fill:1,box:1});put(ws,'K5:L5',S.foreman,{box:1});
  put(ws,'A6:B6','Crew size',{bold:1,fill:1,box:1});put(ws,'C6:D6',S.staff===''?'':num(S.staff),{box:1,h:'left'});put(ws,'E6:F6','Weather',{bold:1,fill:1,box:1});put(ws,'G6:H6',`${blankIf(S.lo)}/${blankIf(S.hi)}°C ${S.cond}`,{box:1});put(ws,'I6:J6','KEA rep',{bold:1,fill:1,box:1});put(ws,'K6:L6',S.keaRep,{box:1});
  ws.getRow(8).height=44;put(ws,'A8:C8','PLANT MATERIAL ON SITE - HARD LIMIT',{bold:1,fill:1,box:1});put(ws,'D8:I8','No more than TWO DAYS of plant material on site at any time, unless there is watering available on site or weather conditions allow the stock to survive. Record days of stock on hand every day.',{size:9,box:1});put(ws,'J8:K8','Days of stock on site:',{bold:1,fill:1,box:1});put(ws,'L8',S.stockDays===''?'':num(S.stockDays),{box:1,h:'center',bold:1});
  put(ws,'A9:C9','Watering available on site today?',{bold:1,fill:1,box:1});put(ws,'D9:I9',(S.watering||'YES / NO')+'   If NO, stock on site must not exceed 2 days.',{box:1});put(ws,'J9:K9','Weather suitable?',{bold:1,fill:1,box:1});put(ws,'L9',S.weatherOk||'YES / NO',{box:1,h:'center',bold:1});
