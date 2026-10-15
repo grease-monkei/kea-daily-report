@@ -127,6 +127,15 @@ const insTot=()=>area().plants.reduce((n,p)=>n+num((S.plants[p[1]]||{}).i),0);
 // One set of % numbers, always labelled (Ali, 2026-10-14: "80% vs 85%" read as a contradiction)
 function pctLines(){const o=[];if(S.pct!=='')o.push(`Area planted to date (all of ${S.area}): approx. ${S.pct}%`);if((S.secName||'').trim()&&S.secPct!=='')o.push(`${S.secName.trim()} (today's section): approx. ${S.secPct}% planted`);return o}
 // Delivery-only wording is only printed on days with a delivery
+// ---------- running tally: every report's delivered/installed counts, per area + planting type, by date ----------
+// Seed = Oct 13 Lot 27/28 delivery (760) from Steve's report, so the tally starts with the plants already on site.
+const SEED={'Lot 27/28|Trees & Shrubs':{'2026-10-13':{'Grand Fir':{d:13},'Big Leaf Maple':{d:7},'Red Alder':{d:7},'Sitka Spruce':{d:13},'Douglas Fir':{d:23},'Pacific Willow':{d:10},'Vine Maple':{d:33},'Red Osier Dog':{d:65},'Salal':{d:231},'Nootka Rose':{d:231},'Salmonberry':{d:52},'Red Elderberry':{d:17},'Western Spirea':{d:58}}}};
+const tkey=()=>S.area+'|'+(S.ptype||'Trees & Shrubs');
+function tlog(){let L={};try{L=JSON.parse(localStorage.getItem('kea-log'))||{}}catch(e){}for(const k in SEED){L[k]=L[k]||{};for(const d in SEED[k])if(!L[k][d])L[k][d]=SEED[k][d]}return L}
+function prevTot(name){const L=tlog()[tkey()]||{};let d=0,i=0;for(const dt in L)if(dt<S.date){const v=L[dt][name]||{};d+=num(v.d);i+=num(v.i)}return{d,i}}
+function toDate(name){const pr=prevTot(name),v=S.plants[name]||{};return{d:pr.d+num(v.d),i:pr.i+num(v.i)}}
+function logToday(){try{const L=JSON.parse(localStorage.getItem('kea-log'))||{},k=tkey();L[k]=L[k]||{};const o={};area().plants.forEach(p=>{const v=S.plants[p[1]]||{};if(num(v.d)||num(v.i))o[p[1]]={d:num(v.d),i:num(v.i)}});L[k][S.date]=o;localStorage.setItem('kea-log',JSON.stringify(L))}catch(e){}}
+function onSite(){return area().plants.reduce((n,p)=>{const t=toDate(p[1]);return n+Math.max(0,t.d-t.i)},0)}
 function noteOut(k){const d=NOTES.find(n=>n[0]===k);if(k==='quality'&&!delTot()&&S.notes[k]===d[2])return'No plant delivery today.';return S.notes[k]}
 function payOf(p){if(p[0]==='Trees')return CONIFERS.includes(p[1])?'Conifers':'Deciduous';return /P$/.test(p[3])&&p[3]==='50P'?'Emergent':'Shrubs'}
 
@@ -155,7 +164,7 @@ function render(){
    if(OPENN.has(id)||cnote(id))checksHtml+=`<textarea class="cnote" id="cn-${id}" placeholder="Describe the problem or concern" oninput="(S.cn=S.cn||{})['${id}']=this.value;saveNow()">${esc(cnote(id))}</textarea>`});checksHtml+=sn('chk'+gi)});
  let plantHtml='<div class="phead"><span>Species</span><span>Delivered today</span><span>Installed today</span><span>Planting</span></div>',td=0,ti=0;
  a.plants.forEach(p=>{const v=S.plants[p[1]]||{};td+=num(v.d);ti+=num(v.i);
-  plantHtml+=`<div class="plant"><div class="nm">${esc(p[1])}<small>${p[3]}${p[4]!==''?' · plan '+p[4]:''} · ${payOf(p)}</small></div><input inputmode="numeric" value="${esc(v.d)}" oninput="setP('${esc(p[1])}','d',this.value)"><input inputmode="numeric" value="${esc(v.i)}" oninput="setP('${esc(p[1])}','i',this.value)"><button class="${v.s==='D'?'on':v.s==='S'?'mid':''}" style="padding:9px 2px;font-size:13px" onclick="cycS('${esc(p[1])}')">${STAT[v.s||'']}</button></div>`});
+  const pt=prevTot(p[1]);plantHtml+=`<div class="plant"><div class="nm">${esc(p[1])}<small>${p[3]}${p[4]!==''?' · plan '+p[4]:''} · ${payOf(p)}</small>${pt.d||pt.i?`<small style="color:var(--brand2)">Before today: delivered ${pt.d} · installed ${pt.i} · <b>${Math.max(0,pt.d-pt.i)} on site</b></small>`:''}</div><input inputmode="numeric" value="${esc(v.d)}" oninput="setP('${esc(p[1])}','d',this.value)"><input inputmode="numeric" value="${esc(v.i)}" oninput="setP('${esc(p[1])}','i',this.value)"><button class="${v.s==='D'?'on':v.s==='S'?'mid':''}" style="padding:9px 2px;font-size:13px" onclick="cycS('${esc(p[1])}')">${STAT[v.s||'']}</button></div>`});
  let extraHtml='<div class="phead" style="grid-template-columns:1fr 74px 74px"><span>Item</span><span>Delivered</span><span>Installed</span></div>';
  EXTRA.forEach(([k,n,u])=>{const v=S.extra[k]||{};extraHtml+=`<div class="plant" style="grid-template-columns:1fr 74px 74px"><div class="nm">${n}<small>${u}</small></div><input inputmode="decimal" value="${esc(v.d)}" oninput="setX('${k}','d',this.value)"><input inputmode="decimal" value="${esc(v.i)}" oninput="setX('${k}','i',this.value)"></div>`});
  document.getElementById('app').innerHTML=`
@@ -189,7 +198,7 @@ function render(){
  <label>Section worked today (optional), e.g. "SE side", and how much of THAT section is planted</label>
  <div class="row"><input value="${esc(S.secName)}" placeholder="e.g. SE side" oninput="S.secName=this.value;saveNow()"><select onchange="S.secPct=this.value;saveNow()"><option value="">%…</option>${[0,10,20,30,40,50,60,70,80,85,90,95,100].map(v=>`<option value="${v}" ${String(S.secPct)===String(v)?'selected':''}>About ${v}%</option>`).join('')}</select></div>
  <div class="hint">Put percentages in these two boxes only, not in notes, so the report never shows two different numbers.</div>
- <div class="hint"><b>Delivered today</b>: only plants that ARRIVED today, from the slip. Leave blank if no delivery. <b>Installed today</b>: plants put in the ground today (a rough count is fine). Planting: tap Not started → Started → Done.</div>
+ <div class="hint"><b>Delivered today</b>: only plants that ARRIVED today, from the slip. Leave blank if no delivery. <b>Installed today</b>: plants put in the ground today (a rough count is fine). Planting: tap Not started → Started → Done. The green line under each plant is the running tally from earlier reports on this phone: what's been delivered, what's been installed, and what's still on site to plant.</div>
  ${plantHtml}<div class="tot" id="ptot">Delivered today ${td} · Installed today ${ti}${td?'':' · no delivery today'}</div>
  ${sn('plants')}
  <div class="grp">Other pay items</div>${extraHtml}
@@ -291,7 +300,7 @@ function sheetFDR(wb){
  [['Staff Count',S.staff]].forEach((x,i)=>{put(ws,'A'+(i+6),x[0],{bold:1,fill:1,box:1});put(ws,'B'+(i+6),x[1]===''?'':num(x[1]),{box:1,h:'left'})});
  ws.getRow(10).height=22;['Area','Sub Area','Subcontractors'].forEach((t,i)=>put(ws,'ABC'[i]+'10',t,{size:12,bold:1,fill:1,box:1}));put(ws,'D10:F10','Tasks Completed',{size:12,bold:1,fill:1,box:1});
  const a=area(),lp=lastPct(),del=delTot(),ins=insTot(),pl=pctLines();
- const task=S.tasks+(del?`\n- Plants delivered to site today: ${del} (see list below)`:'\n- No plant delivery today')+(ins?`\n- Plants installed today: approx. ${ins} (see list below)`:'')+pl.map((t,i)=>`\n- ${t}`+(i===0&&lp&&lp.date!==S.date?` (last report ${lp.date}: approx. ${lp.pct}%)`:'')).join('');
+ const task=S.tasks+(del?`\n- Plants delivered to site today: ${del} (see list below)`:'\n- No plant delivery today')+(ins?`\n- Plants installed today: approx. ${ins} (see list below)`:'')+`\n- Plants on site not yet installed (all deliveries to date minus all installed): approx. ${onSite()}`+pl.map((t,i)=>`\n- ${t}`+(i===0&&lp&&lp.date!==S.date?` (last report ${lp.date}: approx. ${lp.pct}%)`:'')).join('');
  put(ws,'A11',S.area,{size:12,bold:1,h:'center',v:'top',box:1});put(ws,'B11',S.subArea,{v:'top',box:1});put(ws,'C11',PROJECT.sub,{size:12,bold:1,h:'center',v:'top',box:1});put(ws,'D11:F11',task,{v:'top',box:1});fitH(ws,11,task,70,60);
  put(ws,'A12',''),boxRange(ws,'A12','C12');put(ws,'D12:F12',S.summary||'',{h:'center',box:1});fitH(ws,12,S.summary,70,40);
  let r=13;NOTES.forEach(([k,n])=>{put(ws,`A${r}:F${r}`,n,{bold:1,fill:1,box:1});r++;const nt=noteOut(k);put(ws,`A${r}:F${r}`,nt,{v:'top',box:1});fitH(ws,r,nt,150,20);r++});
@@ -302,8 +311,8 @@ function sheetFDR(wb){
  put(ws,`A${r}:F${r}`,'Pictures',{bold:1,fill:1,box:1,h:'center'});r+=2;
  // plant table
  put(ws,`A${r}:F${r}`,`${S.area}  -  Plants  -  ${S.date}`,{bold:1,h:'center'});r++;
- ['Category','Species','Size · Plan total','Delivered Today','Installed Today','Planting Status'].forEach((t,i)=>put(ws,String.fromCharCode(65+i)+r,t,{bold:1,fill:1,box:1,h:'center'}));r++;
- a.plants.forEach(p=>{const v=S.plants[p[1]]||{};[p[0],p[1],p[3]+(p[4]!==''?' · '+p[4]:''),v.d?num(v.d):'',v.i?num(v.i):'',v.s?STAT[v.s]:''].forEach((x,i)=>put(ws,String.fromCharCode(65+i)+r,x,{box:1,h:i>1?'center':'left'}));r++});
+ ['Category','Species','Size · Plan total','Delivered Today','Installed Today','Status (installed / delivered to date)'].forEach((t,i)=>put(ws,String.fromCharCode(65+i)+r,t,{bold:1,fill:1,box:1,h:'center'}));r++;
+ a.plants.forEach(p=>{const v=S.plants[p[1]]||{};[p[0],p[1],p[3]+(p[4]!==''?' · '+p[4]:''),v.d?num(v.d):'',v.i?num(v.i):'',(()=>{const t=toDate(p[1]);return[v.s?STAT[v.s]:'',t.d||t.i?`${t.i} / ${t.d}`:''].filter(Boolean).join(' · ')})()].forEach((x,i)=>put(ws,String.fromCharCode(65+i)+r,x,{box:1,h:i>1?'center':'left'}));r++});
  put(ws,`A${r}:C${r}`,'Total',{bold:1,box:1,h:'right'});put(ws,'D'+r,del||'None',{bold:1,box:1,h:'center'});put(ws,'E'+r,ins||'',{bold:1,box:1,h:'center'});put(ws,'F'+r,S.pct!==''?`~${S.pct}% of whole area`:'',{bold:1,box:1,h:'center'});r+=2;
  // photos two across
  const colPx=[0,187,374,519,617,804],W=390;
@@ -348,7 +357,7 @@ async function makeReport(){
  const miss=[];if(!S.by)miss.push('Submitted by');if(S.staff==='')miss.push('Staff count');if(S.pct==='')miss.push('% of area planted');if(S.stockDays==='')miss.push('Days of stock on site');if(!S.sig)miss.push('Foreman signature');
  if(miss.length&&!confirm('Missing: '+miss.join(', ')+'.\n\nCreate the report anyway?'))return;
  if(typeof ExcelJS==='undefined'){toast('Needs signal the very first time to load. Try again with signal.');return}
- toast('Building report…');try{const m=JSON.parse(localStorage.getItem('kea-last'))||{};if(S.pct!==''){m[S.area]={pct:S.pct,date:S.date};localStorage.setItem('kea-last',JSON.stringify(m))}}catch(e){}
+ toast('Building report…');logToday();try{const m=JSON.parse(localStorage.getItem('kea-last'))||{};if(S.pct!==''){m[S.area]={pct:S.pct,date:S.date};localStorage.setItem('kea-last',JSON.stringify(m))}}catch(e){}
  if(!window.jspdf){toast('Needs signal the very first time to load. Try again with signal.');return}
  const name=baseName()+'.pdf',file=new File([buildPdf(buildWb())],name,{type:'application/pdf'});
  const txt=`Daily Field Report + QMP checksheet - ${S.area} - ${S.date}\nSubmitted by ${S.by}\nSend to: ${PROJECT.email}`;
