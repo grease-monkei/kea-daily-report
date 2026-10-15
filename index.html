@@ -32,11 +32,11 @@ button{font:inherit;border:1px solid var(--line);background:#fff;border-radius:9
 button.mid{background:#e3efe4;border-color:var(--brand2);color:var(--brand)}
 button.on{background:var(--brand2);color:#fff;border-color:var(--brand2)}
 button.primary{background:var(--brand);color:#fff;border-color:var(--brand);font-weight:700}
-.plant{display:grid;grid-template-columns:1fr 74px 74px;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
+.plant{display:grid;grid-template-columns:1fr 60px 60px 74px;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
 .plant .nm{font-size:15px}
 .plant .nm small{display:block;color:var(--muted);font-size:12px}
 .plant input{padding:9px 6px;text-align:center}
-.phead{display:grid;grid-template-columns:1fr 74px 74px;gap:8px;font-size:12px;color:var(--muted);text-align:center;padding-top:8px}
+.phead{display:grid;grid-template-columns:1fr 60px 60px 74px;gap:8px;font-size:12px;color:var(--muted);text-align:center;padding-top:8px}
 .phead span:first-child{text-align:left}
 .tot{font-size:13px;color:var(--muted);margin-top:8px}
 .grp{font-weight:700;margin:16px 0 4px;display:flex;justify-content:space-between;align-items:center}
@@ -93,7 +93,7 @@ const EXTRA=[['bark_blown','Bark - blown in','m³'],['bark_machine','Bark - mach
 const KEEP=['by','foreman','keaRep','area','shift'];
 
 function blank(){return{date:new Date().toLocaleDateString('en-CA'),shift:'Day Shift',by:'',foreman:'',initials:'',keaRep:'Ali Ziadezfouli',hi:'',lo:'',cond:'',staff:'',craft:'',sub:'',area:AREAS[0].name,ptype:'Trees & Shrubs',subArea:'',
- tasks:'Planting Environmental Restoration & Compensation Areas:',plants:{},extra:{},stockDays:'',watering:'',weatherOk:'',checks:{},gm:'',mulch:'',machines:'',issues:'',pct:'',sn:{},cn:{},gps:[],
+ tasks:'Planting Environmental Restoration & Compensation Areas:',plants:{},extra:{},stockDays:'',watering:'',weatherOk:'',checks:{},gm:'',mulch:'',machines:'',issues:'',pct:'',secName:'',secPct:'',sn:{},cn:{},gps:[],
  notes:Object.fromEntries(NOTES.map(n=>[n[0],n[2]])),sig:''}}
 let S=load()||blank(), PHOTOS=[];
 function load(){try{return JSON.parse(localStorage.getItem('kea-draft'))}catch(e){return null}}
@@ -122,6 +122,12 @@ function markGps(b){if(!navigator.geolocation)return toast('This phone has no GP
 const baseArea=()=>AREAS.find(a=>a.name===S.area)||AREAS[0];
 const area=()=>{const a=baseArea();return S.ptype==='Emergent'?{...a,plants:EMERGENT}:a};
 const num=v=>{const n=parseFloat(v);return isNaN(n)?0:n};
+const delTot=()=>area().plants.reduce((n,p)=>n+num((S.plants[p[1]]||{}).d),0);
+const insTot=()=>area().plants.reduce((n,p)=>n+num((S.plants[p[1]]||{}).i),0);
+// One set of % numbers, always labelled (Ali, 2026-10-14: "80% vs 85%" read as a contradiction)
+function pctLines(){const o=[];if(S.pct!=='')o.push(`Area planted to date (all of ${S.area}): approx. ${S.pct}%`);if((S.secName||'').trim()&&S.secPct!=='')o.push(`${S.secName.trim()} (today's section): approx. ${S.secPct}% planted`);return o}
+// Delivery-only wording is only printed on days with a delivery
+function noteOut(k){const d=NOTES.find(n=>n[0]===k);if(k==='quality'&&!delTot()&&S.notes[k]===d[2])return'No plant delivery today.';return S.notes[k]}
 function payOf(p){if(p[0]==='Trees')return CONIFERS.includes(p[1])?'Conifers':'Deciduous';return /P$/.test(p[3])&&p[3]==='50P'?'Emergent':'Shrubs'}
 
 // ---------- photos (IndexedDB so they survive closing the app) ----------
@@ -147,11 +153,11 @@ function render(){
    const lbl=isYN?(v==='y'?'YES':v==='n'?'NO':''):(v==='y'?'✓':v==='na'?'N/A':'');
    checksHtml+=`<div class="chk" onclick="cyc('${id}',${isYN})"><div class="box ${v==='y'?(isYN?'no':'y'):v==='n'?'y':v}">${lbl}</div><div class="tx">${esc(isYN?t.slice(1)+' (tap: YES / NO)':t)}</div><button class="nb ${cnote(id)?'on':''}" onclick="event.stopPropagation();togN('${id}')">${cnote(id)?'✎ Note':'+ Note'}</button></div>`;
    if(OPENN.has(id)||cnote(id))checksHtml+=`<textarea class="cnote" id="cn-${id}" placeholder="Describe the problem or concern" oninput="(S.cn=S.cn||{})['${id}']=this.value;saveNow()">${esc(cnote(id))}</textarea>`});checksHtml+=sn('chk'+gi)});
- let plantHtml='<div class="phead"><span>Species</span><span>Delivered</span><span>Planting</span></div>',td=0;
- a.plants.forEach(p=>{const v=S.plants[p[1]]||{};td+=num(v.d);
-  plantHtml+=`<div class="plant"><div class="nm">${esc(p[1])}<small>${p[3]}${p[4]!==''?' · plan '+p[4]:''} · ${payOf(p)}</small></div><input inputmode="numeric" value="${esc(v.d)}" oninput="setP('${esc(p[1])}','d',this.value)"><button class="${v.s==='D'?'on':v.s==='S'?'mid':''}" style="padding:9px 2px;font-size:13px" onclick="cycS('${esc(p[1])}')">${STAT[v.s||'']}</button></div>`});
- let extraHtml='<div class="phead"><span>Item</span><span>Delivered</span><span>Installed</span></div>';
- EXTRA.forEach(([k,n,u])=>{const v=S.extra[k]||{};extraHtml+=`<div class="plant"><div class="nm">${n}<small>${u}</small></div><input inputmode="decimal" value="${esc(v.d)}" oninput="setX('${k}','d',this.value)"><input inputmode="decimal" value="${esc(v.i)}" oninput="setX('${k}','i',this.value)"></div>`});
+ let plantHtml='<div class="phead"><span>Species</span><span>Delivered today</span><span>Installed today</span><span>Planting</span></div>',td=0,ti=0;
+ a.plants.forEach(p=>{const v=S.plants[p[1]]||{};td+=num(v.d);ti+=num(v.i);
+  plantHtml+=`<div class="plant"><div class="nm">${esc(p[1])}<small>${p[3]}${p[4]!==''?' · plan '+p[4]:''} · ${payOf(p)}</small></div><input inputmode="numeric" value="${esc(v.d)}" oninput="setP('${esc(p[1])}','d',this.value)"><input inputmode="numeric" value="${esc(v.i)}" oninput="setP('${esc(p[1])}','i',this.value)"><button class="${v.s==='D'?'on':v.s==='S'?'mid':''}" style="padding:9px 2px;font-size:13px" onclick="cycS('${esc(p[1])}')">${STAT[v.s||'']}</button></div>`});
+ let extraHtml='<div class="phead" style="grid-template-columns:1fr 74px 74px"><span>Item</span><span>Delivered</span><span>Installed</span></div>';
+ EXTRA.forEach(([k,n,u])=>{const v=S.extra[k]||{};extraHtml+=`<div class="plant" style="grid-template-columns:1fr 74px 74px"><div class="nm">${n}<small>${u}</small></div><input inputmode="decimal" value="${esc(v.d)}" oninput="setX('${k}','d',this.value)"><input inputmode="decimal" value="${esc(v.i)}" oninput="setX('${k}','i',this.value)"></div>`});
  document.getElementById('app').innerHTML=`
 <details open><summary>1. Today <span class="st ${S.by&&S.staff?'done':''}">${esc(S.date)}</span></summary><div class="body">
  <div class="row">${f('date','Shift date','date')}<div><label>Shift</label><select onchange="S.shift=this.value;saveNow()">${['Day Shift','Night Shift'].map(o=>`<option ${S.shift===o?'selected':''}>${o}</option>`).join('')}</select></div></div>
@@ -177,11 +183,14 @@ function render(){
  ${sn('area')}
 </div></details>
 <details><summary>3. Plants <span class="st ${S.pct!==''?'done':''}">${S.pct!==''?'~'+S.pct+'% planted':''}</span></summary><div class="body">
- <label>How much of ${esc(S.area)} is planted so far? (rough guess is fine)</label>
+ <label>WHOLE AREA: how much of all of ${esc(S.area)} is planted so far? (rough guess is fine)</label>
  <select onchange="S.pct=this.value;saveNow();render()"><option value="">Choose…</option>${[0,10,20,30,40,50,60,70,80,90,100].map(v=>`<option value="${v}" ${String(S.pct)===String(v)?'selected':''}>About ${v}%</option>`).join('')}</select>
  <div class="hint">${lastPct()?`Last report (${esc(lastPct().date)}): about ${lastPct().pct}%`:'No earlier report for this area on this phone.'}</div>
- <div class="hint">Delivered: from the delivery slip, blank if none. Planting: tap to set Not started → Started → Done.</div>
- ${plantHtml}<div class="tot" id="ptot">Total delivered ${td}</div>
+ <label>Section worked today (optional), e.g. "SE side", and how much of THAT section is planted</label>
+ <div class="row"><input value="${esc(S.secName)}" placeholder="e.g. SE side" oninput="S.secName=this.value;saveNow()"><select onchange="S.secPct=this.value;saveNow()"><option value="">%…</option>${[0,10,20,30,40,50,60,70,80,85,90,95,100].map(v=>`<option value="${v}" ${String(S.secPct)===String(v)?'selected':''}>About ${v}%</option>`).join('')}</select></div>
+ <div class="hint">Put percentages in these two boxes only, not in notes, so the report never shows two different numbers.</div>
+ <div class="hint"><b>Delivered today</b>: only plants that ARRIVED today, from the slip. Leave blank if no delivery. <b>Installed today</b>: plants put in the ground today (a rough count is fine). Planting: tap Not started → Started → Done.</div>
+ ${plantHtml}<div class="tot" id="ptot">Delivered today ${td} · Installed today ${ti}${td?'':' · no delivery today'}</div>
  ${sn('plants')}
  <div class="grp">Other pay items</div>${extraHtml}
 </div></details>
@@ -211,7 +220,7 @@ function render(){
  document.querySelectorAll('details').forEach((d,i)=>{if(open.length)d.open=open[i]});
  drawPhotos();initSig();
 }
-function setP(n,k,v){(S.plants[n]=S.plants[n]||{})[k]=v;saveNow();let d=0;area().plants.forEach(p=>{d+=num((S.plants[p[1]]||{}).d)});document.getElementById('ptot').textContent=`Total delivered ${d}`}
+function setP(n,k,v){(S.plants[n]=S.plants[n]||{})[k]=v;saveNow();const d=delTot();document.getElementById('ptot').textContent=`Delivered today ${d} · Installed today ${insTot()}${d?'':' · no delivery today'}`}
 function cycS(n){const v=S.plants[n]=S.plants[n]||{};v.s=!v.s?'S':v.s==='S'?'D':'';saveNow();render()}
 function setX(n,k,v){(S.extra[n]=S.extra[n]||{})[k]=v;saveNow()}
 function cyc(id,isYN){const v=S.checks[id]||'';S.checks[id]=isYN?(v===''?'y':v==='y'?'n':''):(v===''?'y':v==='y'?'na':'');saveNow();render()}
@@ -281,11 +290,11 @@ function sheetFDR(wb){
  R.forEach((x,i)=>{put(ws,'E'+(i+2),x[0],{bold:1,fill:1,box:1});put(ws,'F'+(i+2),x[1],{box:1})});
  [['Staff Count',S.staff]].forEach((x,i)=>{put(ws,'A'+(i+6),x[0],{bold:1,fill:1,box:1});put(ws,'B'+(i+6),x[1]===''?'':num(x[1]),{box:1,h:'left'})});
  ws.getRow(10).height=22;['Area','Sub Area','Subcontractors'].forEach((t,i)=>put(ws,'ABC'[i]+'10',t,{size:12,bold:1,fill:1,box:1}));put(ws,'D10:F10','Tasks Completed',{size:12,bold:1,fill:1,box:1});
- const a=area(),lp=lastPct(),del=a.plants.reduce((n,p)=>n+num((S.plants[p[1]]||{}).d),0);
- const task=S.tasks+(del?`\n- Plants delivered to site today: ${del} (see list below)`:'')+(S.pct!==''?`\n- Area planted to date: approx. ${S.pct}%`+(lp&&lp.date!==S.date?` (last report ${lp.date}: approx. ${lp.pct}%)`:''):'');
+ const a=area(),lp=lastPct(),del=delTot(),ins=insTot(),pl=pctLines();
+ const task=S.tasks+(del?`\n- Plants delivered to site today: ${del} (see list below)`:'\n- No plant delivery today')+(ins?`\n- Plants installed today: approx. ${ins} (see list below)`:'')+pl.map((t,i)=>`\n- ${t}`+(i===0&&lp&&lp.date!==S.date?` (last report ${lp.date}: approx. ${lp.pct}%)`:'')).join('');
  put(ws,'A11',S.area,{size:12,bold:1,h:'center',v:'top',box:1});put(ws,'B11',S.subArea,{v:'top',box:1});put(ws,'C11',PROJECT.sub,{size:12,bold:1,h:'center',v:'top',box:1});put(ws,'D11:F11',task,{v:'top',box:1});fitH(ws,11,task,70,60);
  put(ws,'A12',''),boxRange(ws,'A12','C12');put(ws,'D12:F12',S.summary||'',{h:'center',box:1});fitH(ws,12,S.summary,70,40);
- let r=13;NOTES.forEach(([k,n])=>{put(ws,`A${r}:F${r}`,n,{bold:1,fill:1,box:1});r++;put(ws,`A${r}:F${r}`,S.notes[k],{v:'top',box:1});fitH(ws,r,S.notes[k],150,20);r++});
+ let r=13;NOTES.forEach(([k,n])=>{put(ws,`A${r}:F${r}`,n,{bold:1,fill:1,box:1});r++;const nt=noteOut(k);put(ws,`A${r}:F${r}`,nt,{v:'top',box:1});fitH(ws,r,nt,150,20);r++});
  const CN=[['today','Today'],['area','Area & tasks'],['plants','Plants'],['stock','Stock & site'],...CHECKS.map((c,i)=>['chk'+i,'Checklist '+c[0]]),['photos','Photos']].filter(([k])=>((S.sn||{})[k]||'').trim());
  const IN=itemNotes();if(CN.length||IN.length){put(ws,`A${r}:F${r}`,'Crew Notes',{bold:1,fill:1,box:1});r++;const t=CN.map(([k,n])=>`${n}: ${S.sn[k].trim()}`).concat(IN.length?['Checklist item notes:',...IN]:[]).join('\n');put(ws,`A${r}:F${r}`,t,{v:'top',box:1});fitH(ws,r,t,150,20);r++}
  if((S.gps||[]).length){put(ws,`A${r}:F${r}`,'GPS Location(s) - tap to open map',{bold:1,fill:1,box:1});r++;
@@ -293,9 +302,9 @@ function sheetFDR(wb){
  put(ws,`A${r}:F${r}`,'Pictures',{bold:1,fill:1,box:1,h:'center'});r+=2;
  // plant table
  put(ws,`A${r}:F${r}`,`${S.area}  -  Plants  -  ${S.date}`,{bold:1,h:'center'});r++;
- ['Category','Species','NATS Size','Plan List Total','Delivered Today','Planting Status'].forEach((t,i)=>put(ws,String.fromCharCode(65+i)+r,t,{bold:1,fill:1,box:1,h:'center'}));r++;
- a.plants.forEach(p=>{const v=S.plants[p[1]]||{};[p[0],p[1],p[3],p[4],v.d?num(v.d):'',v.s?STAT[v.s]:''].forEach((x,i)=>put(ws,String.fromCharCode(65+i)+r,x,{box:1,h:i>1?'center':'left'}));r++});
- put(ws,`A${r}:D${r}`,'Total',{bold:1,box:1,h:'right'});put(ws,'E'+r,del,{bold:1,box:1,h:'center'});put(ws,'F'+r,S.pct!==''?`~${S.pct}% of area`:'',{bold:1,box:1,h:'center'});r+=2;
+ ['Category','Species','Size · Plan total','Delivered Today','Installed Today','Planting Status'].forEach((t,i)=>put(ws,String.fromCharCode(65+i)+r,t,{bold:1,fill:1,box:1,h:'center'}));r++;
+ a.plants.forEach(p=>{const v=S.plants[p[1]]||{};[p[0],p[1],p[3]+(p[4]!==''?' · '+p[4]:''),v.d?num(v.d):'',v.i?num(v.i):'',v.s?STAT[v.s]:''].forEach((x,i)=>put(ws,String.fromCharCode(65+i)+r,x,{box:1,h:i>1?'center':'left'}));r++});
+ put(ws,`A${r}:C${r}`,'Total',{bold:1,box:1,h:'right'});put(ws,'D'+r,del||'None',{bold:1,box:1,h:'center'});put(ws,'E'+r,ins||'',{bold:1,box:1,h:'center'});put(ws,'F'+r,S.pct!==''?`~${S.pct}% of whole area`:'',{bold:1,box:1,h:'center'});r+=2;
  // photos two across
  const colPx=[0,187,374,519,617,804],W=390;
  for(let i=0;i<PHOTOS.length;i+=2){let hMax=0;[PHOTOS[i],PHOTOS[i+1]].forEach((p,j)=>{if(!p)return;const h=Math.round(W*p.h/p.w);hMax=Math.max(hMax,h);imgAdd(wb,ws,p.data,j?3.3:0.1,r-1,W,h,1)});r+=Math.ceil(hMax/20)+1}
@@ -316,7 +325,7 @@ function sheetQMP(wb){
  const sides=[[0,1],[2,3,4]];let maxR=0;
  sides.forEach((gs,side)=>{const [ck,tx,ini]=side?['G','H:K','L']:['A','B:E','F'];let r=r0+1;
   gs.forEach(gi=>{const [g,items]=CHECKS[gi];put(ws,`${ck}${r}:${ini}${r}`,g,{bold:1,fill:1,box:1});r++;
-   items.forEach((t,ii)=>{const v=S.checks[gi+'.'+ii]||'',isYN=t[0]==='*';
+   items.forEach((t,ii)=>{let v=S.checks[gi+'.'+ii]||'';const isYN=t[0]==='*';if(gi===1&&ii<=2&&!delTot()&&v)v='na';
     put(ws,ck+r,isYN?'':v==='y'?'✓':v==='na'?'N/A':'',{box:1,h:'center',bold:1,size:11});
     put(ws,tx.replace(':',r+':')+r,(isYN?`${t.slice(1)} - ${v==='y'?'YES':v==='n'?'NO':'YES / NO'}`:t)+(cnote(gi+'.'+ii)?'  * see note':''),{box:1,size:9,bold:!!cnote(gi+'.'+ii)});
     put(ws,ini+r,v&&!isYN?inits(S.foreman):'',{box:1,h:'center',size:9});ws.getRow(r).height=20;r++})});maxR=Math.max(maxR,r)});
@@ -324,11 +333,11 @@ function sheetQMP(wb){
  let r=maxR+1;const hdr=[['A:D','Pay item'],['E:F','Area'],['G:H','Delivered today'],['I:J','Installed today'],['K:L','Notes']];
  const cell=(rng,row,val,o)=>{const [a,b]=rng.split(':');put(ws,`${a}${row}:${b}${row}`,val,Object.assign({box:1},o))};
  hdr.forEach(([rg,t])=>cell(rg,r,t,{bold:1,fill:1,h:'center'}));r++;
- const pay={Conifers:[0,0],Deciduous:[0,0],Shrubs:[0,0],Emergent:[0,0]};area().plants.forEach(p=>{const v=S.plants[p[1]]||{};pay[payOf(p)][0]+=num(v.d);if(v.s)pay[payOf(p)][1]++;if(v.s!=='D')pay[payOf(p)].open=1});
- const rows=Object.entries(pay).map(([k,x])=>[k,x[0],'',x[1]?(x.open?'Planting in progress':'Complete'):'']).concat(EXTRA.map(([k,n,u])=>{const v=S.extra[k]||{};return[n,v.d===undefined||v.d===''?'':num(v.d),v.i===undefined||v.i===''?'':num(v.i),(v.d||v.i)?u:'']}));
+ const pay={Conifers:[0,0,0],Deciduous:[0,0,0],Shrubs:[0,0,0],Emergent:[0,0,0]};area().plants.forEach(p=>{const v=S.plants[p[1]]||{},q=pay[payOf(p)];q[0]+=num(v.d);q[2]+=num(v.i);if(v.s)q[1]++;if(v.s!=='D')q.open=1});
+ const rows=Object.entries(pay).map(([k,x])=>[k,x[0],x[2],x[1]?(x.open?'Planting in progress':'Complete'):'']).concat(EXTRA.map(([k,n,u])=>{const v=S.extra[k]||{};return[n,v.d===undefined||v.d===''?'':num(v.d),v.i===undefined||v.i===''?'':num(v.i),(v.d||v.i)?u:'']}));
  rows.forEach(([n,d,i,note])=>{const any=d||i;cell('A:D',r,n);cell('E:F',r,any?S.area:'',{size:9});cell('G:H',r,d||'',{h:'center'});cell('I:J',r,i||'',{h:'center'});cell('K:L',r,note,{size:9});r++});
  cell('A:C',r,'Growing medium depth checked (mm)',{bold:1,fill:1,size:9});cell('D:D',r,S.gm===''?'':num(S.gm),{h:'center'});cell('E:G',r,'Mulch depth checked (mm)',{bold:1,fill:1,size:9});cell('H:H',r,S.mulch===''?'':num(S.mulch),{h:'center'});cell('I:J',r,'Machines on site today:',{bold:1,fill:1,size:9});cell('K:L',r,S.machines||'None',{size:9});ws.getRow(r).height=28;r+=2;
- cell('A:C',r,'Issues / delays / deficiencies',{bold:1,fill:1,v:'top'});const iss=[S.issues||(itemNotes().length?'':'None'),...itemNotes(),S.pct!==''?`Area planted to date: approx. ${S.pct}%`:'',...CHECKS.map((c,i)=>(S.sn||{})['chk'+i]?c[0]+': '+S.sn['chk'+i]:''),(S.sn||{}).stock?'Stock & site: '+S.sn.stock:''].filter(Boolean).join('\n');
+ cell('A:C',r,'Issues / delays / deficiencies',{bold:1,fill:1,v:'top'});const iss=[S.issues||(itemNotes().length?'':'None'),...itemNotes(),...pctLines(),...CHECKS.map((c,i)=>(S.sn||{})['chk'+i]?c[0]+': '+S.sn['chk'+i]:''),(S.sn||{}).stock?'Stock & site: '+S.sn.stock:''].filter(Boolean).join('\n');
  cell('D:L',r,iss,{v:'top'});fitH(ws,r,iss,90,40);r+=2;
  cell('A:C',r,'Blue Pine foreman',{bold:1,fill:1});cell('D:G',r,S.foreman);cell('H:I',r,'Date / time',{bold:1,fill:1});cell('J:L',r,S.date+' '+new Date().toTimeString().slice(0,5));ws.getRow(r).height=46;
  if(S.sig)imgAdd(wb,ws,S.sig,5.2,r-1,150,48);r++;
@@ -348,7 +357,11 @@ async function makeReport(){
  setTimeout(()=>{if(confirm('Report saved to Downloads.\n\nOpen email to '+PROJECT.email+' now? (Attach the file from Downloads.)'))location.href=`mailto:${PROJECT.email}?${PROJECT.cc?'cc='+PROJECT.cc+'&':''}subject=${encodeURIComponent(baseName())}&body=${encodeURIComponent(txt+'\n\n(Report attached)')}`},600);
 }
 
-(async()=>{PHOTOS=await dbAll();render();getWx();if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js')})();
+(async()=>{PHOTOS=await dbAll();
+ // Yesterday's draft must not carry into today (Oct 14 report repeated Oct 13's 760 delivered)
+ const today=new Date().toLocaleDateString('en-CA');
+ if(S.date&&S.date!==today&&confirm(`This report is still dated ${S.date}.\n\nOK = start today's report (clears ${S.date}'s counts, checklist, notes and photos; names and area are kept).\nCancel = keep working on the ${S.date} report.`)){const b=blank();KEEP.forEach(k=>b[k]=S[k]);S=b;PHOTOS=[];await dbClear();saveNow();setTimeout(()=>toast('New report started for '+today),400)}
+ render();getWx();if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js')})();
 </script>
 </body>
 </html>
