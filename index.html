@@ -32,11 +32,11 @@ button{font:inherit;border:1px solid var(--line);background:#fff;border-radius:9
 button.mid{background:#e3efe4;border-color:var(--brand2);color:var(--brand)}
 button.on{background:var(--brand2);color:#fff;border-color:var(--brand2)}
 button.primary{background:var(--brand);color:#fff;border-color:var(--brand);font-weight:700}
-.plant{display:grid;grid-template-columns:1fr 60px 60px 74px;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
+.plant{display:grid;grid-template-columns:1fr 60px 78px 56px;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
 .plant .nm{font-size:15px}
 .plant .nm small{display:block;color:var(--muted);font-size:12px}
 .plant input{padding:9px 6px;text-align:center}
-.phead{display:grid;grid-template-columns:1fr 60px 60px 74px;gap:8px;font-size:12px;color:var(--muted);text-align:center;padding-top:8px}
+.phead{display:grid;grid-template-columns:1fr 60px 78px 56px;gap:8px;font-size:12px;color:var(--muted);text-align:center;padding-top:8px}
 .phead span:first-child{text-align:left}
 .tot{font-size:13px;color:var(--muted);margin-top:8px}
 .grp{font-weight:700;margin:16px 0 4px;display:flex;justify-content:space-between;align-items:center}
@@ -136,6 +136,13 @@ const pkey=p=>S.area+'|'+(p[0]==='Emergent'?'Emergent':'Trees & Shrubs');
 function tlog(){let L={};try{L=JSON.parse(localStorage.getItem('kea-log'))||{}}catch(e){}for(const k in SEED){L[k]=L[k]||{};for(const d in SEED[k])if(!L[k][d])L[k][d]=SEED[k][d]}return L}
 function prevTot(name){const A=tlog();let d=0,i=0;[S.area+'|Trees & Shrubs',S.area+'|Emergent'].forEach(k=>{const L=A[k]||{};for(const dt in L)if(dt<S.date){const v=L[dt][name]||{};d+=num(v.d);i+=num(v.i)}});return{d,i}}
 function toDate(name){const pr=prevTot(name),v=S.plants[name]||{};return{d:pr.d+num(v.d),i:pr.i+num(v.i)}}
+// v15: Steve picks "% planted to date" per species; Installed today = that % of all delivered to date, minus what earlier reports installed.
+const PCTS=[0,10,20,30,40,50,60,70,80,90,100];
+function pctBase(name){const pr=prevTot(name);return{pr,base:pr.d+num((S.plants[name]||{}).d)}}
+function applyPct(name){const v=S.plants[name]=S.plants[name]||{};if(v.p===undefined||v.p==='')return;const{pr,base}=pctBase(name),p=num(v.p);
+ v.i=String(Math.max(0,Math.round(p/100*base)-pr.i));v.s=p>=100?'D':p>0?'S':''}
+function setPct(n,v){(S.plants[n]=S.plants[n]||{}).p=v;if(v==='')S.plants[n].i='';applyPct(n);saveNow();render()}
+function allDone(){area().plants.forEach(p=>{if(pctBase(p[1]).base>0){(S.plants[p[1]]=S.plants[p[1]]||{}).p='100';applyPct(p[1])}});saveNow();render();toast('Everything delivered so far marked 100% planted')}
 function logToday(){try{const L=JSON.parse(localStorage.getItem('kea-log'))||{},o={};area().plants.forEach(p=>{const k=pkey(p);o[k]=o[k]||{};const v=S.plants[p[1]]||{};if(num(v.d)||num(v.i))o[k][p[1]]={d:num(v.d),i:num(v.i)}});for(const k in o){L[k]=L[k]||{};L[k][S.date]=o[k]}localStorage.setItem('kea-log',JSON.stringify(L))}catch(e){}}
 function onSite(){return area().plants.reduce((n,p)=>{const t=toDate(p[1]);return n+Math.max(0,t.d-t.i)},0)}
 function noteOut(k){const d=NOTES.find(n=>n[0]===k);if(k==='quality'&&!delTot()&&S.notes[k]===d[2])return'No plant delivery today.';return S.notes[k]}
@@ -164,9 +171,9 @@ function render(){
    const lbl=isYN?(v==='y'?'YES':v==='n'?'NO':''):(v==='y'?'✓':v==='na'?'N/A':'');
    checksHtml+=`<div class="chk" onclick="cyc('${id}',${isYN})"><div class="box ${v==='y'?(isYN?'no':'y'):v==='n'?'y':v}">${lbl}</div><div class="tx">${esc(isYN?t.slice(1)+' (tap: YES / NO)':t)}</div><button class="nb ${cnote(id)?'on':''}" onclick="event.stopPropagation();togN('${id}')">${cnote(id)?'✎ Note':'+ Note'}</button></div>`;
    if(OPENN.has(id)||cnote(id))checksHtml+=`<textarea class="cnote" id="cn-${id}" placeholder="Describe the problem or concern" oninput="(S.cn=S.cn||{})['${id}']=this.value;saveNow()">${esc(cnote(id))}</textarea>`});checksHtml+=sn('chk'+gi)});
- let plantHtml='<div class="phead"><span>Species</span><span>Delivered today</span><span>Installed today</span><span>Planting</span></div>',td=0,ti=0;
- a.plants.forEach(p=>{const v=S.plants[p[1]]||{};td+=num(v.d);ti+=num(v.i);
-  const pt=prevTot(p[1]);plantHtml+=`<div class="plant"><div class="nm">${esc(p[1])}<small>${p[3]}${p[4]!==''?' · plan '+p[4]:''} · ${payOf(p)}</small>${pt.d||pt.i?`<small style="color:var(--brand2)">Before today: delivered ${pt.d} · installed ${pt.i} · <b>${Math.max(0,pt.d-pt.i)} on site</b></small>`:''}</div><input inputmode="numeric" value="${esc(v.d)}" oninput="setP('${esc(p[1])}','d',this.value)"><input inputmode="numeric" value="${esc(v.i)}" oninput="setP('${esc(p[1])}','i',this.value)"><button class="${v.s==='D'?'on':v.s==='S'?'mid':''}" style="padding:9px 2px;font-size:13px" onclick="cycS('${esc(p[1])}')">${STAT[v.s||'']}</button></div>`});
+ let plantHtml='<div class="phead"><span>Species</span><span>Delivered today</span><span>% planted to date</span><span>Installed today</span></div>',td=0,ti=0;
+ a.plants.forEach((p,ix)=>{const v=S.plants[p[1]]||{};td+=num(v.d);ti+=num(v.i);const{pr,base}=pctBase(p[1]),was=pr.d?Math.round(pr.i/pr.d*100):'';
+  const pt=prevTot(p[1]);plantHtml+=`<div class="plant"><div class="nm">${esc(p[1])}<small>${p[3]}${p[4]!==''?' · plan '+p[4]:''} · ${payOf(p)}</small>${pt.d||pt.i?`<small style="color:var(--brand2)">Before today: delivered ${pt.d} · installed ${pt.i} · <b>${Math.max(0,pt.d-pt.i)} on site</b>${was!==''?' · '+was+'% planted':''}</small>`:''}</div><input inputmode="numeric" value="${esc(v.d)}" oninput="setP('${esc(p[1])}','d',this.value)"><select style="padding:9px 2px" ${base?'':'disabled'} onchange="setPct('${esc(p[1])}',this.value)"><option value="">${base?'%…':'—'}</option>${PCTS.map(x=>`<option value="${x}" ${v.p!==undefined&&v.p!==''&&num(v.p)===x?'selected':''}>${x}%</option>`).join('')}</select><div class="pi" id="pi-${ix}" style="text-align:center;font-weight:700">${num(v.i)||''}</div></div>`});
  let extraHtml='<div class="phead" style="grid-template-columns:1fr 74px 74px"><span>Item</span><span>Delivered</span><span>Installed</span></div>';
  EXTRA.forEach(([k,n,u])=>{const v=S.extra[k]||{};extraHtml+=`<div class="plant" style="grid-template-columns:1fr 74px 74px"><div class="nm">${n}<small>${u}</small></div><input inputmode="decimal" value="${esc(v.d)}" oninput="setX('${k}','d',this.value)"><input inputmode="decimal" value="${esc(v.i)}" oninput="setX('${k}','i',this.value)"></div>`});
  document.getElementById('app').innerHTML=`
@@ -200,8 +207,8 @@ function render(){
  <label>Section worked today (optional), e.g. "SE side", and how much of THAT section is planted</label>
  <div class="row"><input value="${esc(S.secName)}" placeholder="e.g. SE side" oninput="S.secName=this.value;saveNow()"><select onchange="S.secPct=this.value;saveNow()"><option value="">%…</option>${[0,10,20,30,40,50,60,70,80,85,90,95,100].map(v=>`<option value="${v}" ${String(S.secPct)===String(v)?'selected':''}>About ${v}%</option>`).join('')}</select></div>
  <div class="hint">Put percentages in these two boxes only, not in notes, so the report never shows two different numbers.</div>
- <div class="hint"><b>Delivered today</b>: only plants that ARRIVED today, from the slip. Leave blank if no delivery. <b>Installed today</b>: plants put in the ground today (a rough count is fine). Planting: tap Not started → Started → Done. The green line under each plant is the running tally from earlier reports on this phone: what's been delivered, what's been installed, and what's still on site to plant.</div>
- ${plantHtml}<div class="tot" id="ptot">Delivered today ${td} · Installed today ${ti}${td?'':' · no delivery today'}</div>
+ <div class="hint"><b>Delivered today</b>: only plants that ARRIVED today, from the slip. Leave blank if no delivery. <b>% planted to date</b>: for each plant, how much of everything delivered so far is now in the ground. The app works out <b>Installed today</b> for you. The green line under each plant is the running tally from earlier reports on this phone: what's been delivered, what's been installed, and what's still on site to plant.</div>
+ <button style="width:100%;margin:8px 0" onclick="allDone()">✓ Everything delivered so far is planted (all 100%)</button>${plantHtml}<div class="tot" id="ptot">Delivered today ${td} · Installed today ${ti}${td?'':' · no delivery today'}</div>
  ${sn('plants')}
  <div class="grp">Other pay items</div>${extraHtml}
 </div></details>
@@ -231,7 +238,7 @@ function render(){
  document.querySelectorAll('details').forEach((d,i)=>{if(open.length)d.open=open[i]});
  drawPhotos();initSig();
 }
-function setP(n,k,v){(S.plants[n]=S.plants[n]||{})[k]=v;saveNow();const d=delTot();document.getElementById('ptot').textContent=`Delivered today ${d} · Installed today ${insTot()}${d?'':' · no delivery today'}`}
+function setP(n,k,v){(S.plants[n]=S.plants[n]||{})[k]=v;applyPct(n);saveNow();const ix=area().plants.findIndex(p=>p[1]===n),c=document.getElementById('pi-'+ix);if(c)c.textContent=num(S.plants[n].i)||'';const d=delTot();document.getElementById('ptot').textContent=`Delivered today ${d} · Installed today ${insTot()}${d?'':' · no delivery today'}`}
 function cycS(n){const v=S.plants[n]=S.plants[n]||{};v.s=!v.s?'S':v.s==='S'?'D':'';saveNow();render()}
 function setX(n,k,v){(S.extra[n]=S.extra[n]||{})[k]=v;saveNow()}
 function cyc(id,isYN){const v=S.checks[id]||'';S.checks[id]=isYN?(v===''?'y':v==='y'?'n':''):(v===''?'y':v==='y'?'na':'');saveNow();render()}
