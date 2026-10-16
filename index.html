@@ -303,7 +303,7 @@ function sheetFDR(wb){
  const ws=wb.addWorksheet('Daily Field Report',{pageSetup:{paperSize:1,orientation:'portrait',fitToPage:true,fitToWidth:1,fitToHeight:0,margins:{left:.4,right:.4,top:.5,bottom:.5,header:.2,footer:.2}}});
  ws.columns=[{width:26},{width:26},{width:20},{width:14},{width:26},{width:30}];
  ws.getRow(1).height=40;put(ws,'B1:D1','Daily Field Report',{size:18,bold:true,h:'center',fill:1,box:1});put(ws,'E1:F1','KEA\nFraser Valley Connectors',{size:12,bold:true,h:'center'});
- const L=[['Project No.',PROJECT.no],['Project Name',PROJECT.name],['Report Submitted By',S.by+' (BPL)']],R=[['Shift Date',S.date],['Shift Start/Stop (24 Hr.)',S.shift],['Work Location',S.area+locSfx()+(S.subArea?' - '+S.subArea:'')],['Weather (High/Low/Conditions)',`${blankIf(S.lo)}/${blankIf(S.hi)}°C ${S.cond}`]];
+ const L=[['Project No.',PROJECT.no],['Project Name',PROJECT.name],['Report Submitted By',S.by+' (BPL)']],R=[['Shift Date',S.date],['Shift Start/Stop (24 Hr.)',S.shift],['Work Location',S.area+locSfx()+(S.subArea?' - '+S.subArea:'')],['Weather (High/Low/Conditions)',`${blankIf(S.hi)}/${blankIf(S.lo)}°C ${S.cond}`]];
  L.forEach((x,i)=>{put(ws,'A'+(i+2),x[0],{bold:1,fill:1,box:1});put(ws,'B'+(i+2),x[1],{box:1})});
  R.forEach((x,i)=>{put(ws,'E'+(i+2),x[0],{bold:1,fill:1,box:1});put(ws,'F'+(i+2),x[1],{box:1})});
  [['Staff Count',S.staff]].forEach((x,i)=>{put(ws,'A'+(i+6),x[0],{bold:1,fill:1,box:1});put(ws,'B'+(i+6),x[1]===''?'':num(x[1]),{box:1,h:'left'})});
@@ -335,7 +335,7 @@ function sheetQMP(wb){
  put(ws,'A2:B2','Project:',{bold:1,fill:1,box:1});put(ws,'C2:F2',PROJECT.qmpName,{box:1});put(ws,'G2:H2','Attention:',{bold:1,fill:1,box:1});put(ws,'I2:L2','KEA - daily submission',{box:1});
  put(ws,'A3:B3','Date:',{bold:1,fill:1,box:1});put(ws,'C3:F3',S.date,{box:1});put(ws,'G3:H3','Item:',{bold:1,fill:1,box:1});put(ws,'I3:L3','Restoration and Landscape Planting',{box:1});
  put(ws,'A5:B5','Date',{bold:1,fill:1,box:1});put(ws,'C5:D5',S.date,{box:1});put(ws,'E5:F5','Area(s) worked',{bold:1,fill:1,box:1});put(ws,'G5:H5',S.area+locSfx()+(S.subArea?' - '+S.subArea:''),{box:1});put(ws,'I5:J5','Foreman',{bold:1,fill:1,box:1});put(ws,'K5:L5',S.foreman,{box:1});
- put(ws,'A6:B6','Crew size',{bold:1,fill:1,box:1});put(ws,'C6:D6',S.staff===''?'':num(S.staff),{box:1,h:'left'});put(ws,'E6:F6','Weather',{bold:1,fill:1,box:1});put(ws,'G6:H6',`${blankIf(S.lo)}/${blankIf(S.hi)}°C ${S.cond}`,{box:1});put(ws,'I6:J6','KEA rep',{bold:1,fill:1,box:1});put(ws,'K6:L6',S.keaRep,{box:1});
+ put(ws,'A6:B6','Crew size',{bold:1,fill:1,box:1});put(ws,'C6:D6',S.staff===''?'':num(S.staff),{box:1,h:'left'});put(ws,'E6:F6','Weather',{bold:1,fill:1,box:1});put(ws,'G6:H6',`${blankIf(S.hi)}/${blankIf(S.lo)}°C ${S.cond}`,{box:1});put(ws,'I6:J6','KEA rep',{bold:1,fill:1,box:1});put(ws,'K6:L6',S.keaRep,{box:1});
  ws.getRow(8).height=44;put(ws,'A8:C8','PLANT MATERIAL ON SITE - HARD LIMIT',{bold:1,fill:1,box:1});put(ws,'D8:I8','No more than TWO DAYS of plant material on site at any time, unless there is watering available on site or weather conditions allow the stock to survive. Record days of stock on hand every day.',{size:9,box:1});put(ws,'J8:K8','Days of stock on site:',{bold:1,fill:1,box:1});put(ws,'L8',S.stockDays===''?'':num(S.stockDays),{box:1,h:'center',bold:1});
  put(ws,'A9:C9','Watering available on site today?',{bold:1,fill:1,box:1});put(ws,'D9:I9',(S.watering||'YES / NO')+'   If NO, stock on site must not exceed 2 days.',{box:1});put(ws,'J9:K9','Weather suitable?',{bold:1,fill:1,box:1});put(ws,'L9',S.weatherOk||'YES / NO',{box:1,h:'center',bold:1});
  // checklist in two columns: groups 1-2 left, 3-5 right
@@ -351,7 +351,7 @@ function sheetQMP(wb){
  let r=maxR+1;const hdr=[['A:D','Pay item'],['E:F','Area'],['G:H','Delivered today'],['I:J','Installed today'],['K:L','Notes']];
  const cell=(rng,row,val,o)=>{const [a,b]=rng.split(':');put(ws,`${a}${row}:${b}${row}`,val,Object.assign({box:1},o))};
  hdr.forEach(([rg,t])=>cell(rg,r,t,{bold:1,fill:1,h:'center'}));r++;
- const pay={Conifers:[0,0,0],Deciduous:[0,0,0],Shrubs:[0,0,0],Emergent:[0,0,0]};area().plants.forEach(p=>{const v=S.plants[p[1]]||{},q=pay[payOf(p)];q[0]+=num(v.d);q[2]+=num(v.i);if(v.s)q[1]++;if(v.s!=='D')q.open=1});
+ const pay={Conifers:[0,0,0],Deciduous:[0,0,0],Shrubs:[0,0,0],Emergent:[0,0,0]};area().plants.forEach(p=>{const v=S.plants[p[1]]||{},q=pay[payOf(p)];q[0]+=num(v.d);q[2]+=num(v.i);if(v.s)q[1]++;if(v.s!=='D'&&toDate(p[1]).d>0)q.open=1});
  const rows=Object.entries(pay).map(([k,x])=>[k,x[0],x[2],x[1]?(x.open?'Planting in progress':'Complete'):'']).concat(EXTRA.map(([k,n,u])=>{const v=S.extra[k]||{};return[n,v.d===undefined||v.d===''?'':num(v.d),v.i===undefined||v.i===''?'':num(v.i),(v.d||v.i)?u:'']}));
  rows.forEach(([n,d,i,note])=>{const any=d||i;cell('A:D',r,n);cell('E:F',r,any?S.area:'',{size:9});cell('G:H',r,d||'',{h:'center'});cell('I:J',r,i||'',{h:'center'});cell('K:L',r,note,{size:9});r++});
  cell('A:C',r,'Growing medium depth checked (mm)',{bold:1,fill:1,size:9});cell('D:D',r,S.gm===''?'':num(S.gm),{h:'center'});cell('E:G',r,'Mulch depth checked (mm)',{bold:1,fill:1,size:9});cell('H:H',r,S.mulch===''?'':num(S.mulch),{h:'center'});cell('I:J',r,'Machines on site today:',{bold:1,fill:1,size:9});cell('K:L',r,S.machines||'None',{size:9});ws.getRow(r).height=28;r+=2;
