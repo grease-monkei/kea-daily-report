@@ -133,7 +133,9 @@ function pctLines(){const o=[];if(S.pct!=='')o.push(`Area planted to date (all o
 // Seed = Oct 13 Lot 27/28 delivery (760) from Steve's report, so the tally starts with the plants already on site.
 const SEED={'Lot 27/28|Trees & Shrubs':{'2026-10-13':{'Grand Fir':{d:13},'Big Leaf Maple':{d:7},'Red Alder':{d:7},'Sitka Spruce':{d:13},'Douglas Fir':{d:23},'Pacific Willow':{d:10},'Vine Maple':{d:33},'Red Osier Dog':{d:65},'Salal':{d:231},'Nootka Rose':{d:231},'Salmonberry':{d:52},'Red Elderberry':{d:17},'Western Spirea':{d:58}}}};
 const pkey=p=>S.area+'|'+(p[0]==='Emergent'?'Emergent':'Trees & Shrubs');
-function tlog(){let L={};try{L=JSON.parse(localStorage.getItem('kea-log'))||{}}catch(e){}for(const k in SEED){L[k]=L[k]||{};for(const d in SEED[k])if(!L[k][d])L[k][d]=SEED[k][d]}return L}
+// FIX = corrected days that override what a phone saved (Oct 14 Lot 27/28 was sent with Installed blank; the whole 760 went in that day).
+const FIX={'Lot 27/28|Trees & Shrubs':{'2026-10-14':Object.fromEntries(Object.entries(SEED['Lot 27/28|Trees & Shrubs']['2026-10-13']).map(([n,v])=>[n,{d:0,i:v.d}]))}};
+function tlog(){let L={};try{L=JSON.parse(localStorage.getItem('kea-log'))||{}}catch(e){}for(const k in SEED){L[k]=L[k]||{};for(const d in SEED[k])if(!L[k][d])L[k][d]=SEED[k][d]}for(const k in FIX){L[k]=L[k]||{};Object.assign(L[k],FIX[k])}return L}
 function prevTot(name){const A=tlog();let d=0,i=0;[S.area+'|Trees & Shrubs',S.area+'|Emergent'].forEach(k=>{const L=A[k]||{};for(const dt in L)if(dt<S.date){const v=L[dt][name]||{};d+=num(v.d);i+=num(v.i)}});return{d,i}}
 function toDate(name){const pr=prevTot(name),v=S.plants[name]||{};return{d:pr.d+num(v.d),i:pr.i+num(v.i)}}
 // v15: Steve picks "% planted to date" per species; Installed today = that % of all delivered to date, minus what earlier reports installed.
