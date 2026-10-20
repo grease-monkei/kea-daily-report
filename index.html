@@ -93,7 +93,7 @@ const EXTRA=[['bark_blown','Bark - blown in','m³'],['bark_machine','Bark - mach
 const KEEP=['by','foreman','keaRep','area','shift'];
 
 function blank(){return{date:new Date().toLocaleDateString('en-CA'),shift:'Day Shift',by:'',foreman:'',initials:'',keaRep:'Ali Ziadezfouli',hi:'',lo:'',cond:'',staff:'',craft:'',sub:'',area:AREAS[0].name,ptype:'Trees & Shrubs',subArea:'',
- tasks:'Planting Environmental Restoration & Compensation Areas:',plants:{},extra:{},stockDays:'',watering:'',weatherOk:'',checks:{},gm:'',mulch:'',machines:'',issues:'',pct:'',secName:'',secPct:'',sn:{},cn:{},gps:[],
+ tasks:'Planting Environmental Restoration & Compensation Areas:',plants:{},extra:{},stockHrs:'',watering:'',weatherOk:'',checks:{},gm:'',mulch:'',machines:'',issues:'',pct:'',secName:'',secPct:'',sn:{},cn:{},gps:[],
  notes:Object.fromEntries(NOTES.map(n=>[n[0],n[2]])),sig:''}}
 let S=load()||blank(), PHOTOS=[];
 function load(){try{return JSON.parse(localStorage.getItem('kea-draft'))}catch(e){return null}}
@@ -214,9 +214,9 @@ function render(){
  ${sn('plants')}
  <div class="grp">Other pay items</div>${extraHtml}
 </div></details>
-<details><summary>4. Stock &amp; site <span class="st ${S.stockDays!==''?'done':''}">${S.stockDays!==''?S.stockDays+' days stock':''}</span></summary><div class="body">
- <div class="hint">HARD LIMIT: no more than TWO DAYS of plant material on site unless watering is available or weather allows.</div>
- <div class="row">${f('stockDays','Days of stock on site','number','inputmode="decimal"')}<div></div></div>
+<details><summary>4. Stock &amp; site <span class="st ${S.stockHrs!==''?'done':''}">${S.stockHrs!==''?S.stockHrs+' hrs stock':''}</span></summary><div class="body">
+ <div class="hint">HARD LIMIT: no more than TWO DAYS (48 hours) of plant material on site unless watering is available or weather allows.</div>
+ <div class="row">${f('stockHrs','Hours of stock on site (e.g. delivered 11 am, now 3 pm = 4)','number','inputmode="decimal"')}<div></div></div>
  <div class="row">${yn('watering','Watering available on site?')}${yn('weatherOk','Weather suitable?')}</div>
  <div class="row">${f('gm','Growing medium depth (mm)','number','inputmode="numeric"')}${f('mulch','Mulch depth (mm)','number','inputmode="numeric"')}</div>
  ${f('machines','Machines on site today','text','placeholder="None"')}
@@ -338,7 +338,7 @@ function sheetQMP(wb){
  put(ws,'A3:B3','Date:',{bold:1,fill:1,box:1});put(ws,'C3:F3',S.date,{box:1});put(ws,'G3:H3','Item:',{bold:1,fill:1,box:1});put(ws,'I3:L3','Restoration and Landscape Planting',{box:1});
  put(ws,'A5:B5','Date',{bold:1,fill:1,box:1});put(ws,'C5:D5',S.date,{box:1});put(ws,'E5:F5','Area(s) worked',{bold:1,fill:1,box:1});put(ws,'G5:H5',S.area+locSfx()+(S.subArea?' - '+S.subArea:''),{box:1});put(ws,'I5:J5','Foreman',{bold:1,fill:1,box:1});put(ws,'K5:L5',S.foreman,{box:1});
  put(ws,'A6:B6','Crew size',{bold:1,fill:1,box:1});put(ws,'C6:D6',S.staff===''?'':num(S.staff),{box:1,h:'left'});put(ws,'E6:F6','Weather',{bold:1,fill:1,box:1});put(ws,'G6:H6',`${blankIf(S.hi)}/${blankIf(S.lo)}°C ${S.cond}`,{box:1});put(ws,'I6:J6','KEA rep',{bold:1,fill:1,box:1});put(ws,'K6:L6',S.keaRep,{box:1});
- ws.getRow(8).height=44;put(ws,'A8:C8','PLANT MATERIAL ON SITE - HARD LIMIT',{bold:1,fill:1,box:1});put(ws,'D8:I8','No more than TWO DAYS of plant material on site at any time, unless there is watering available on site or weather conditions allow the stock to survive. Record days of stock on hand every day.',{size:9,box:1});put(ws,'J8:K8','Days of stock on site:',{bold:1,fill:1,box:1});put(ws,'L8',S.stockDays===''?'':num(S.stockDays),{box:1,h:'center',bold:1});
+ ws.getRow(8).height=44;put(ws,'A8:C8','PLANT MATERIAL ON SITE - HARD LIMIT',{bold:1,fill:1,box:1});put(ws,'D8:I8','No more than TWO DAYS (48 hours) of plant material on site at any time, unless there is watering available on site or weather conditions allow the stock to survive. Record hours of stock on hand every day.',{size:9,box:1});put(ws,'J8:K8','Hours of stock on site:',{bold:1,fill:1,box:1});put(ws,'L8',S.stockHrs===''?'':num(S.stockHrs),{box:1,h:'center',bold:1});
  put(ws,'A9:C9','Watering available on site today?',{bold:1,fill:1,box:1});put(ws,'D9:I9',(S.watering||'YES / NO')+'   If NO, stock on site must not exceed 2 days.',{box:1});put(ws,'J9:K9','Weather suitable?',{bold:1,fill:1,box:1});put(ws,'L9',S.weatherOk||'YES / NO',{box:1,h:'center',bold:1});
  // checklist in two columns: groups 1-2 left, 3-5 right
  let r0=11;[['A','B:E','F'],['G','H:K','L']].forEach(([ck,tx,ini])=>{put(ws,ck+r0,'✓',{bold:1,fill:1,box:1,h:'center'});put(ws,tx.replace(':',r0+':')+r0,'Check',{bold:1,fill:1,box:1});put(ws,ini+r0,'Init.',{bold:1,fill:1,box:1,h:'center'})});
@@ -365,7 +365,7 @@ function sheetQMP(wb){
 }
 
 async function makeReport(){
- const miss=[];if(!S.by)miss.push('Submitted by');if(S.staff==='')miss.push('Staff count');if(S.pct==='')miss.push('% of area planted');if(S.stockDays==='')miss.push('Days of stock on site');if(!S.sig)miss.push('Foreman signature');
+ const miss=[];if(!S.by)miss.push('Submitted by');if(S.staff==='')miss.push('Staff count');if(S.pct==='')miss.push('% of area planted');if(S.stockHrs==='')miss.push('Hours of stock on site');if(!S.sig)miss.push('Foreman signature');
  if(miss.length&&!confirm('Missing: '+miss.join(', ')+'.\n\nCreate the report anyway?'))return;
  if(typeof ExcelJS==='undefined'){toast('Needs signal the very first time to load. Try again with signal.');return}
  toast('Building report…');logToday();try{const m=JSON.parse(localStorage.getItem('kea-last'))||{};if(S.pct!==''){m[S.area]={pct:S.pct,date:S.date};localStorage.setItem('kea-last',JSON.stringify(m))}}catch(e){}
