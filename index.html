@@ -434,16 +434,26 @@ async function makeReport(){
  if(!window.jspdf){toast('Needs signal the very first time to load. Try again with signal.');return}
  const name=baseName()+'.pdf',file=new File([buildPdf(buildWb(await reportPhotos()))],name,{type:'application/pdf'});
  const txt=`Daily Field Report + QMP checksheet - ${areaNames()} - ${S.date}\nSubmitted by ${S.by}\nSend to: ${PROJECT.email}`;
- if(navigator.canShare&&navigator.canShare({files:[file]})){try{await navigator.share({files:[file],title:name,text:txt});toast('Sent');return}catch(e){if(e.name==='AbortError')return}}
- dl(file,name);
+ if(navigator.canShare&&navigator.canShare({files:[file]})){try{await navigator.share({files:[file],title:name,text:txt});toast('Sent');fileInApp(file,name);return}catch(e){if(e.name==='AbortError')return}}
+ dl(file,name);fileInApp(file,name);
  setTimeout(()=>{if(confirm('Report saved to Downloads.\n\nOpen email to '+PROJECT.email+' now? (Attach the file from Downloads.)'))location.href=`mailto:${PROJECT.email}?${PROJECT.cc?'cc='+PROJECT.cc+'&':''}subject=${encodeURIComponent(baseName())}&body=${encodeURIComponent(txt+'\n\n(Report attached)')}`},600);
 }
+
+// v19: every sent report also files on the KEA job (260826) in the Blue Pine app. No signal = queued, retried when signal comes back.
+const SAVE_URL='https://qukbxrzxcqtxyjdakhpx.supabase.co/functions/v1/daily-report',SAVE_KEY='bpl-kea-7Tq2';
+const QDB=new Promise(r=>{try{const q=indexedDB.open('kea-file',1);q.onupgradeneeded=()=>q.result.createObjectStore('q');q.onsuccess=()=>r(q.result);q.onerror=()=>r(null)}catch(e){r(null)}});
+async function qAll(){const d=await QDB;if(!d)return[];return new Promise(r=>{const o=[],c=d.transaction('q').objectStore('q').openCursor();c.onsuccess=()=>{const k=c.result;if(k){o.push([k.key,k.value]);k.continue()}else r(o)};c.onerror=()=>r([])})}
+async function qSet(id,v){const d=await QDB;if(d)d.transaction('q','readwrite').objectStore('q')[v?'put':'delete'](v||id,v?id:undefined)}
+async function fileInApp(file,name){const pdf=await new Promise(r=>{const f=new FileReader();f.onload=()=>r(String(f.result).split(',')[1]);f.readAsDataURL(file)});
+ const id='r'+Date.now();await qSet(id,{key:SAVE_KEY,job:'260826',date:S.date,by:S.by,title:name.replace(/\.pdf$/,''),name,pdf,data:{date:S.date,by:S.by,areas:areaNames()}});flushApp()}
+async function flushApp(){for(const [id,j] of await qAll()){try{const r=await fetch(SAVE_URL,{method:'POST',body:JSON.stringify(j)});const o=await r.json().catch(()=>({}));if(!r.ok||o.ok===false)throw 0;await qSet(id,null)}catch(e){return}}}
+window.addEventListener('online',flushApp);
 
 (async()=>{PHOTOS=await dbAll();
  // Yesterday's draft must not carry into today (Oct 14 report repeated Oct 13's 760 delivered)
  const today=new Date().toLocaleDateString('en-CA');
  if(S.date&&S.date!==today&&confirm(`This report is still dated ${S.date}.\n\nOK = start today's report (clears ${S.date}'s counts, checklist, notes and photos; names and area are kept).\nCancel = keep working on the ${S.date} report.`)){S=fresh();PHOTOS=[];await dbClear();saveNow();setTimeout(()=>toast('New report started for '+today),400)}
- render();getWx();if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js')})();
+ render();getWx();flushApp();if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js')})();
 </script>
 </body>
 </html>
