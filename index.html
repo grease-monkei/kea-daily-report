@@ -59,6 +59,10 @@ canvas.sig{width:100%;height:150px;border:1px dashed var(--muted);border-radius:
 .bar{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);padding:10px 12px calc(10px + env(safe-area-inset-bottom));display:flex;gap:8px;z-index:6}
 .bar button{flex:1;padding:14px}
 .toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:#222;color:#fff;padding:10px 16px;border-radius:20px;font-size:14px;display:none;z-index:9;max-width:90%}
+.area{border:2px solid var(--brand2);border-radius:12px;padding:10px;margin:14px 0;background:#fafcfa}
+.ahead{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}
+.ahead select{font-weight:700;font-size:17px}
+.addbtn{display:block;text-align:center;background:#e3efe4;border:1px solid var(--brand2);color:var(--brand);padding:12px;border-radius:9px;margin-top:8px;font-weight:600}
 .cfg{font-size:13px;color:#fff;background:transparent;border:1px solid rgba(255,255,255,.5);padding:6px 10px}
 </style>
 </head>
@@ -90,18 +94,24 @@ const CHECKS=[
  ['4. INSTALL',['Layout / grid set out and checked before planting','Planting depth correct - root crown at finished grade','Plugs fully seated, no exposed plug material','Mulch only where indicated - 75 mm, rings kept clear of stems','Quantities planted per area','Staking for #10 pot and #20 pot per BCLNA']],
  ['5. RECORDS',['Before / during / after photos taken and labelled by area','Daily quantities recorded below']]];
 const EXTRA=[['bark_blown','Bark - blown in','m³'],['bark_machine','Bark - machine placed','m³'],['seed','Broadcast seed','m²'],['staking','Extra #5 pot staking','ea']];
-const KEEP=['by','foreman','keaRep','area','shift'];
-
-function blank(){return{date:new Date().toLocaleDateString('en-CA'),shift:'Day Shift',by:'',foreman:'',initials:'',keaRep:'Ali Ziadezfouli',hi:'',lo:'',cond:'',staff:'',craft:'',sub:'',area:AREAS[0].name,ptype:'Trees & Shrubs',subArea:'',
- tasks:'Planting Environmental Restoration & Compensation Areas:',plants:{},extra:{},stockHrs:'',watering:'',weatherOk:'',checks:{},gm:'',mulch:'',machines:'',issues:'',pct:'',secName:'',secPct:'',sn:{},cn:{},gps:[],
+const KEEP=['by','foreman','keaRep','shift'];
+// v18: a day can cover several areas. Each area worked is a "block" with its own species list, counts, % and packing-slip photos.
+const blankBlock=(area=AREAS[0].name,ptype='Trees & Shrubs')=>({id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),area,ptype,subArea:'',plants:{},pct:'',secName:'',secPct:'',all:''});
+function blank(){return{date:new Date().toLocaleDateString('en-CA'),shift:'Day Shift',by:'',foreman:'',initials:'',keaRep:'Ali Ziadezfouli',hi:'',lo:'',cond:'',staff:'',craft:'',sub:'',blocks:[blankBlock()],
+ tasks:'Planting Environmental Restoration & Compensation Areas:',extra:{},stockHrs:'',watering:'',weatherOk:'',checks:{},gm:'',mulch:'',machines:'',issues:'',sn:{},cn:{},gps:[],
  notes:Object.fromEntries(NOTES.map(n=>[n[0],n[2]])),sig:''}}
-let S=load()||blank(), PHOTOS=[];
+// Older drafts (v17 and before) had one area on S itself; move it into blocks[0].
+function norm(s){if(!s)return s;if(!Array.isArray(s.blocks)||!s.blocks.length){const b=blankBlock(s.area||AREAS[0].name,s.ptype||'Trees & Shrubs');Object.assign(b,{subArea:s.subArea||'',plants:s.plants||{},pct:s.pct??'',secName:s.secName||'',secPct:s.secPct??''});s.blocks=[b]}
+ ['area','ptype','subArea','plants','pct','secName','secPct'].forEach(k=>delete s[k]);return s}
+// New report: keep names, and keep the first area + planting type picked
+function fresh(){const b=blank();KEEP.forEach(k=>b[k]=S[k]);b.blocks=[blankBlock(S.blocks[0].area,S.blocks[0].ptype)];return b}
+let S=norm(load())||blank(), PHOTOS=[];
 function load(){try{return JSON.parse(localStorage.getItem('kea-draft'))}catch(e){return null}}
 function saveNow(t){try{localStorage.setItem('kea-draft',JSON.stringify(S));if(t)toast('Draft saved on this phone')}catch(e){toast('Could not save draft')}}
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.style.display='block';clearTimeout(t._t);t._t=setTimeout(()=>t.style.display='none',2800)}
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const STAT={'':'Not started',S:'Started',D:'Done'};
-function lastPct(){try{return(JSON.parse(localStorage.getItem('kea-last'))||{})[S.area]}catch(e){}}
+function lastPct(a){try{return(JSON.parse(localStorage.getItem('kea-last'))||{})[a]}catch(e){}}
 function sn(k){return `<label>Notes</label><textarea placeholder="Anything to add?" oninput="S.sn['${k}']=this.value;saveNow()">${esc((S.sn||{})[k])}</textarea>`}
 const WX={lat:49.109,lon:-122.489};
 const WMO={0:'Sunny',1:'Mostly sunny',2:'Partly cloudy',3:'Cloudy',45:'Fog',48:'Fog',51:'Light drizzle',53:'Drizzle',55:'Heavy drizzle',56:'Freezing drizzle',57:'Freezing drizzle',61:'Light rain',63:'Rain',65:'Heavy rain',66:'Freezing rain',67:'Freezing rain',71:'Light snow',73:'Snow',75:'Heavy snow',77:'Snow',80:'Showers',81:'Showers',82:'Heavy showers',85:'Snow showers',86:'Snow showers',95:'Thunderstorms',96:'Thunderstorms',99:'Thunderstorms'};
@@ -119,43 +129,64 @@ const mapUrl=g=>`https://maps.google.com/?q=${g.lat.toFixed(6)},${g.lon.toFixed(
 function markGps(b){if(!navigator.geolocation)return toast('This phone has no GPS access');b.disabled=true;b.textContent='Getting location… (stand still)';
  navigator.geolocation.getCurrentPosition(p=>{(S.gps=S.gps||[]).push({lat:p.coords.latitude,lon:p.coords.longitude,acc:Math.round(p.coords.accuracy),time:new Date().toTimeString().slice(0,5),label:''});saveNow();render();toast('Location marked (±'+Math.round(p.coords.accuracy)+' m)')},
   e=>{b.disabled=false;render();toast(e.code===1?'Location blocked - allow location for this app in Chrome settings':'Could not get location - try again in the open')},{enableHighAccuracy:true,timeout:30000,maximumAge:0})}
-const baseArea=()=>AREAS.find(a=>a.name===S.area)||AREAS[0];
 const BOTH=PTYPES[2];
-const area=()=>{const a=baseArea();return S.ptype==='Emergent'?{...a,plants:EMERGENT}:S.ptype===BOTH?{...a,plants:a.plants.concat(EMERGENT)}:a};
-const locSfx=()=>S.ptype==='Emergent'?' - Emergent':S.ptype===BOTH?' - Trees, Shrubs & Emergent':'';
+const B=i=>S.blocks[i];
+const areaRec=b=>AREAS.find(a=>a.name===b.area)||AREAS[0];
+const plantsOf=b=>{const a=areaRec(b);return b.ptype==='Emergent'?EMERGENT:b.ptype===BOTH?a.plants.concat(EMERGENT):a.plants};
+const sfx=b=>b.ptype==='Emergent'?' - Emergent':b.ptype===BOTH?' - Trees, Shrubs & Emergent':'';
+const locOf=b=>b.area+sfx(b)+(b.subArea?' - '+b.subArea:'');
+const locAll=()=>S.blocks.map(locOf).join(' + ');
+const areaNames=()=>S.blocks.map(b=>b.area).join(' + ');
 const num=v=>{const n=parseFloat(v);return isNaN(n)?0:n};
-const delTot=()=>area().plants.reduce((n,p)=>n+num((S.plants[p[1]]||{}).d),0);
-const insTot=()=>area().plants.reduce((n,p)=>n+num((S.plants[p[1]]||{}).i),0);
+const bDel=b=>plantsOf(b).reduce((n,p)=>n+num((b.plants[p[1]]||{}).d),0);
+const bIns=b=>plantsOf(b).reduce((n,p)=>n+num((b.plants[p[1]]||{}).i),0);
+const delTot=()=>S.blocks.reduce((n,b)=>n+bDel(b),0);
+const insTot=()=>S.blocks.reduce((n,b)=>n+bIns(b),0);
 // One set of % numbers, always labelled (Ali, 2026-10-14: "80% vs 85%" read as a contradiction)
-function pctLines(){const o=[];if(S.pct!=='')o.push(`Area planted to date (all of ${S.area}): approx. ${S.pct}%`);if((S.secName||'').trim()&&S.secPct!=='')o.push(`${S.secName.trim()} (today's section): approx. ${S.secPct}% planted`);return o}
-// Delivery-only wording is only printed on days with a delivery
+function pctLines(){const o=[];S.blocks.forEach(b=>{const lp=lastPct(b.area);if(b.pct!=='')o.push(`Area planted to date (all of ${b.area}): approx. ${b.pct}%`+(lp&&lp.date!==S.date?` (last report ${lp.date}: approx. ${lp.pct}%)`:''));
+ if((b.secName||'').trim()&&b.secPct!=='')o.push(`${b.secName.trim()} (${b.area}, today's section): approx. ${b.secPct}% planted`)});return o}
 // ---------- running tally: every report's delivered/installed counts, per area + planting type, by date ----------
 // Seed = Oct 13 Lot 27/28 delivery (760) from Steve's report, so the tally starts with the plants already on site.
 const SEED={'Lot 27/28|Trees & Shrubs':{'2026-10-13':{'Grand Fir':{d:13},'Big Leaf Maple':{d:7},'Red Alder':{d:7},'Sitka Spruce':{d:13},'Douglas Fir':{d:23},'Pacific Willow':{d:10},'Vine Maple':{d:33},'Red Osier Dog':{d:65},'Salal':{d:231},'Nootka Rose':{d:231},'Salmonberry':{d:52},'Red Elderberry':{d:17},'Western Spirea':{d:58}}}};
-const pkey=p=>S.area+'|'+(p[0]==='Emergent'?'Emergent':'Trees & Shrubs');
+const pkey=(b,p)=>b.area+'|'+(p[0]==='Emergent'?'Emergent':'Trees & Shrubs');
 // FIX = corrected days that override what a phone saved (Oct 14 Lot 27/28 was sent with Installed blank; the whole 760 went in that day).
 const FIX={'Lot 27/28|Trees & Shrubs':{'2026-10-14':Object.fromEntries(Object.entries(SEED['Lot 27/28|Trees & Shrubs']['2026-10-13']).map(([n,v])=>[n,{d:0,i:v.d}]))}};
 function tlog(){let L={};try{L=JSON.parse(localStorage.getItem('kea-log'))||{}}catch(e){}for(const k in SEED){L[k]=L[k]||{};for(const d in SEED[k])if(!L[k][d])L[k][d]=SEED[k][d]}for(const k in FIX){L[k]=L[k]||{};Object.assign(L[k],FIX[k])}return L}
-function prevTot(name){const A=tlog();let d=0,i=0;[S.area+'|Trees & Shrubs',S.area+'|Emergent'].forEach(k=>{const L=A[k]||{};for(const dt in L)if(dt<S.date){const v=L[dt][name]||{};d+=num(v.d);i+=num(v.i)}});return{d,i}}
-function toDate(name){const pr=prevTot(name),v=S.plants[name]||{};return{d:pr.d+num(v.d),i:pr.i+num(v.i)}}
-// v15: Steve picks "% planted to date" per species; Installed today = that % of all delivered to date, minus what earlier reports installed.
+function prevTot(b,name){const A=tlog();let d=0,i=0;[b.area+'|Trees & Shrubs',b.area+'|Emergent'].forEach(k=>{const L=A[k]||{};for(const dt in L)if(dt<S.date){const v=L[dt][name]||{};d+=num(v.d);i+=num(v.i)}});return{d,i}}
+function toDate(b,name){const pr=prevTot(b,name),v=b.plants[name]||{};return{d:pr.d+num(v.d),i:pr.i+num(v.i)}}
+// v15: % planted to date per species; Installed today = that % of all delivered to date, minus what earlier reports installed.
+// v18: no plan quantities anywhere - Delivered is whatever the packing slip says (NW Wetland, Nov 18: Steve capped deliveries at the drawing's plan total).
 const PCTS=[0,10,20,30,40,50,60,70,80,90,100];
-function pctBase(name){const pr=prevTot(name);return{pr,base:pr.d+num((S.plants[name]||{}).d)}}
-function applyPct(name){const v=S.plants[name]=S.plants[name]||{};if(v.p===undefined||v.p==='')return;const{pr,base}=pctBase(name),p=num(v.p);
+const blankV=x=>x===undefined||x===null||x==='';
+function pctBase(b,name){const pr=prevTot(b,name);return{pr,base:pr.d+num((b.plants[name]||{}).d)}}
+function applyPct(b,name){const v=b.plants[name]=b.plants[name]||{};if(blankV(v.p))return;const{pr,base}=pctBase(b,name),p=num(v.p);
  v.i=String(Math.max(0,Math.round(p/100*base)-pr.i));v.s=p>=100?'D':p>0?'S':''}
-// v17: Installed today can also be typed; the % box then shows what that works out to (Steve, Nov 13 Ditch B leftovers weren't on a 10% step).
-function typedPct(name){const{pr,base}=pctBase(name);return base?Math.round((pr.i+num((S.plants[name]||{}).i))/base*100):''}
-function pctLabel(name){const v=S.plants[name]||{},{base}=pctBase(name);if(!base)return'—';return(v.p===undefined||v.p==='')&&v.i!==undefined&&v.i!==''?typedPct(name)+'%':'%…'}
-function rowSync(n){const ix=area().plants.findIndex(p=>p[1]===n),v=S.plants[n]||{},c=document.getElementById('pi-'+ix),sel=document.getElementById('ps-'+ix);
- if(c&&document.activeElement!==c)c.value=v.i??'';if(sel){sel.options[0].text=pctLabel(n);if(v.p===undefined||v.p==='')sel.value=''}
- const d=delTot();document.getElementById('ptot').textContent=`Delivered today ${d} · Installed today ${insTot()}${d?'':' · no delivery today'}`}
-function typedS(n){const v=S.plants[n],pc=typedPct(n),pr=pctBase(n).pr;v.s=pc!==''&&pc>=100?'D':(num(v.i)>0||pr.i>0)?'S':''}
-function setI(n,val){const v=S.plants[n]=S.plants[n]||{};v.i=val;v.p='';typedS(n);saveNow();rowSync(n)}
-function setPct(n,v){(S.plants[n]=S.plants[n]||{}).p=v;if(v==='')S.plants[n].i='';applyPct(n);saveNow();render()}
-function allDone(){area().plants.forEach(p=>{if(pctBase(p[1]).base>0){(S.plants[p[1]]=S.plants[p[1]]||{}).p='100';applyPct(p[1])}});saveNow();render();toast('Everything delivered so far marked 100% planted')}
-function logToday(){try{const L=JSON.parse(localStorage.getItem('kea-log'))||{},o={};area().plants.forEach(p=>{const k=pkey(p);o[k]=o[k]||{};const v=S.plants[p[1]]||{};if(num(v.d)||num(v.i))o[k][p[1]]={d:num(v.d),i:num(v.i)}});for(const k in o){L[k]=L[k]||{};L[k][S.date]=o[k]}localStorage.setItem('kea-log',JSON.stringify(L))}catch(e){}}
-function onSite(){return area().plants.reduce((n,p)=>{const t=toDate(p[1]);return n+Math.max(0,t.d-t.i)},0)}
+// v17: Installed today can also be typed; the % box then shows what that works out to.
+function typedPct(b,name){const{pr,base}=pctBase(b,name);return base?Math.round((pr.i+num((b.plants[name]||{}).i))/base*100):''}
+function pctLabel(b,name){const v=b.plants[name]||{},{base}=pctBase(b,name);if(!base)return'—';return blankV(v.p)&&!blankV(v.i)?typedPct(b,name)+'%':'%…'}
+const totTxt=b=>{const d=bDel(b);return `${b.area}: delivered today ${d} · installed today ${bIns(b)}${d?'':' · no delivery today'}`};
+const gtotTxt=()=>`ALL AREAS: delivered today ${delTot()} · installed today ${insTot()}`;
+function rowSync(bi,n){const b=B(bi),ix=plantsOf(b).findIndex(p=>p[1]===n),v=b.plants[n]||{},c=document.getElementById(`pi-${bi}-${ix}`),sel=document.getElementById(`ps-${bi}-${ix}`);
+ if(c&&document.activeElement!==c)c.value=v.i??'';if(sel){sel.disabled=!pctBase(b,n).base;sel.options[0].text=pctLabel(b,n);sel.value=blankV(v.p)?'':String(num(v.p))}
+ const t=document.getElementById('ptot-'+bi);if(t)t.textContent=totTxt(b);const g=document.getElementById('gtot');if(g)g.textContent=gtotTxt()}
+function typedS(b,n){const v=b.plants[n],pc=typedPct(b,n),pr=pctBase(b,n).pr;v.s=pc!==''&&pc>=100?'D':(num(v.i)>0||pr.i>0)?'S':''}
+function setI(bi,n,val){const b=B(bi),v=b.plants[n]=b.plants[n]||{};v.i=val;v.p='';b.all='';typedS(b,n);saveNow();rowSync(bi,n);syncAll(bi)}
+function setPct(bi,n,v){const b=B(bi);(b.plants[n]=b.plants[n]||{}).p=v;if(v==='')b.plants[n].i='';b.all='';applyPct(b,n);saveNow();render()}
+// Delivered typed: if a whole-list % is picked, a newly delivered plant gets it too (unless its count was typed)
+function setP(bi,n,k,v){const b=B(bi),o=b.plants[n]=b.plants[n]||{};o[k]=v;if(k==='d'&&!blankV(b.all)&&blankV(o.p)&&blankV(o.i))o.p=b.all;applyPct(b,n);if(blankV(o.p)&&!blankV(o.i))typedS(b,n);saveNow();rowSync(bi,n)}
+// v18: one % for the whole list of an area (Steve: "what percentage of that list was installed as a whole")
+function setAll(bi,v){const b=B(bi);b.all=v;if(v!==''){let n=0;plantsOf(b).forEach(p=>{if(pctBase(b,p[1]).base>0){(b.plants[p[1]]=b.plants[p[1]]||{}).p=v;applyPct(b,p[1]);n++}});toast(n?`${v}% filled in for ${n} plant${n==1?'':'s'} in ${b.area}`:'Nothing delivered yet for '+b.area+' - type the delivered numbers first')}saveNow();render()}
+function syncAll(bi){const s=document.getElementById('pall-'+bi);if(s)s.value=''}
+function logToday(){try{const L=JSON.parse(localStorage.getItem('kea-log'))||{},o={};S.blocks.forEach(b=>plantsOf(b).forEach(p=>{const k=pkey(b,p);o[k]=o[k]||{};const v=b.plants[p[1]]||{};if(num(v.d)||num(v.i))o[k][p[1]]={d:num(v.d),i:num(v.i)}}));for(const k in o){L[k]=L[k]||{};L[k][S.date]=o[k]}localStorage.setItem('kea-log',JSON.stringify(L))}catch(e){}}
+const bOnSite=b=>plantsOf(b).reduce((n,p)=>{const t=toDate(b,p[1]);return n+Math.max(0,t.d-t.i)},0);
+function onSite(){return S.blocks.reduce((n,b)=>n+bOnSite(b),0)}
 function noteOut(k){const d=NOTES.find(n=>n[0]===k);if(k==='quality'&&!delTot()&&S.notes[k]===d[2])return'No plant delivery today.';return S.notes[k]}
+// ---------- areas worked today ----------
+function setArea(bi,v){B(bi).area=v;saveNow();render()}
+function addBlock(){const used=new Set(S.blocks.map(b=>b.area)),a=(AREAS.find(x=>!used.has(x.name))||AREAS[0]).name;S.blocks.push(blankBlock(a,S.blocks[S.blocks.length-1].ptype));saveNow();render();
+ const el=document.getElementById('blk-'+(S.blocks.length-1));if(el)el.scrollIntoView({behavior:'smooth',block:'start'});toast('Area added - pick which area at the top of the new box')}
+function delBlock(bi){const b=B(bi);if(!confirm(`Remove ${b.area} from today's report?\n\nIts counts and packing slip photos are cleared.`))return;
+ PHOTOS.filter(p=>p.slip===b.id).forEach(p=>dbDel(p.id));PHOTOS=PHOTOS.filter(p=>p.slip!==b.id);S.blocks.splice(bi,1);saveNow();render()}
 function payOf(p){if(p[0]==='Trees')return CONIFERS.includes(p[1])?'Conifers':'Deciduous';return /P$/.test(p[3])&&p[3]==='50P'?'Emergent':'Shrubs'}
 
 // ---------- photos (IndexedDB so they survive closing the app) ----------
@@ -165,25 +196,54 @@ async function dbPut(o){const d=await DB;if(d)d.transaction('p','readwrite').obj
 async function dbDel(id){const d=await DB;if(d)d.transaction('p','readwrite').objectStore('p').delete(id)}
 async function dbClear(){const d=await DB;if(d)d.transaction('p','readwrite').objectStore('p').clear()}
 function shrink(file){return new Promise(res=>{const img=new Image();img.onload=()=>{const m=1400,k=Math.min(1,m/Math.max(img.width,img.height));const c=document.createElement('canvas');c.width=Math.round(img.width*k);c.height=Math.round(img.height*k);c.getContext('2d').drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(img.src);res({id:Date.now()+Math.random(),data:c.toDataURL('image/jpeg',.8),w:c.width,h:c.height})};img.src=URL.createObjectURL(file)})}
-async function addPhotos(inp){for(const f of inp.files){const p=await shrink(f);PHOTOS.push(p);dbPut(p)}inp.value='';drawPhotos()}
+// slip = id of the area block a packing-slip photo belongs to (v18); site photos have no slip
+async function addPhotos(inp,slip){for(const f of inp.files){const p=await shrink(f);if(slip)p.slip=slip;PHOTOS.push(p);dbPut(p)}inp.value='';drawPhotos();if(slip)toast('Packing slip photo added')}
 function delPhoto(i){dbDel(PHOTOS[i].id);PHOTOS.splice(i,1);drawPhotos()}
-function drawPhotos(){document.getElementById('ph').innerHTML=PHOTOS.map((p,i)=>`<div><img src="${p.data}"><button onclick="delPhoto(${i})">✕</button></div>`).join('');document.getElementById('phst').textContent=PHOTOS.length+' photo'+(PHOTOS.length==1?'':'s')}
+const isSite=p=>!p.slip||!S.blocks.some(b=>b.id===p.slip);
+function drawPhotos(){const th=f=>PHOTOS.map((p,i)=>f(p)?`<div><img src="${p.data}"><button onclick="delPhoto(${i})">✕</button></div>`:'').join('');
+ const ph=document.getElementById('ph');if(ph)ph.innerHTML=th(isSite);const n=PHOTOS.filter(isSite).length,st=document.getElementById('phst');if(st)st.textContent=n+' photo'+(n==1?'':'s');
+ S.blocks.forEach(b=>{const el=document.getElementById('slip-'+b.id);if(el)el.innerHTML=th(p=>p.slip===b.id)})}
+// Report photos: each area's packing slips first, labelled with the area, then site photos
+function labelled(p,text){return new Promise(res=>{const im=new Image();im.onload=()=>{const fs=Math.max(22,Math.round(p.w*.04)),bar=Math.round(fs*1.8),c=document.createElement('canvas');c.width=p.w;c.height=p.h+bar;const x=c.getContext('2d');
+ x.fillStyle='#fff';x.fillRect(0,0,c.width,bar);x.fillStyle='#000';x.font=`bold ${fs}px sans-serif`;x.textBaseline='middle';x.fillText(text,Math.round(fs*.5),Math.round(bar/2));x.drawImage(im,0,bar,p.w,p.h);
+ res({...p,data:c.toDataURL('image/jpeg',.85),h:p.h+bar})};im.onerror=()=>res(p);im.src=p.data})}
+async function reportPhotos(){const out=[];for(const b of S.blocks)for(const p of PHOTOS.filter(x=>x.slip===b.id))out.push(await labelled(p,'Packing slip - '+b.area));return out.concat(PHOTOS.filter(isSite))}
 
 // ---------- render ----------
 function f(k,lab,type='text',extra=''){return `<div><label>${lab}</label><input type="${type}" value="${esc(S[k])}" oninput="S['${k}']=this.value;saveNow()" ${k==='date'?'onchange="getWx()"':''} ${extra}></div>`}
 function yn(k,lab){return `<div><label>${lab}</label><div class="yn">${['YES','NO'].map(v=>`<button class="${S[k]===v?'on':''}" onclick="S['${k}']=S['${k}']==='${v}'?'':'${v}';saveNow();render()">${v}</button>`).join('')}</div></div>`}
+// v18: one box per area worked today - area picker, slip photos, whole-list %, species rows
+function blockHtml(b,bi){
+ const used=new Set(S.blocks.filter((_,j)=>j!==bi).map(x=>x.area)),lp=lastPct(b.area),q=s=>esc(s).replace(/'/g,"\\'");
+ let rows='<div class="phead"><span>Species</span><span>Delivered today</span><span>% planted to date</span><span>Installed today</span></div>';
+ plantsOf(b).forEach((p,ix)=>{const v=b.plants[p[1]]||{},{pr,base}=pctBase(b,p[1]),was=pr.d?Math.round(pr.i/pr.d*100):'';
+  rows+=`<div class="plant"><div class="nm">${esc(p[1])}<small>${p[3]} · ${payOf(p)}</small>${pr.d||pr.i?`<small style="color:var(--brand2)">Before today: delivered ${pr.d} · installed ${pr.i} · <b>${Math.max(0,pr.d-pr.i)} on site</b>${was!==''?' · '+was+'% planted':''}</small>`:''}</div><input inputmode="numeric" value="${esc(v.d)}" oninput="setP(${bi},'${q(p[1])}','d',this.value)"><select id="ps-${bi}-${ix}" style="padding:9px 2px" ${base?'':'disabled'} onchange="setPct(${bi},'${q(p[1])}',this.value)"><option value="">${pctLabel(b,p[1])}</option>${PCTS.map(x=>`<option value="${x}" ${!blankV(v.p)&&num(v.p)===x?'selected':''}>${x}%</option>`).join('')}</select><input inputmode="numeric" id="pi-${bi}-${ix}" value="${esc(v.i)}" oninput="setI(${bi},'${q(p[1])}',this.value)" style="text-align:center;font-weight:700;padding:9px 2px"></div>`});
+ const nSlip=PHOTOS.filter(p=>p.slip===b.id).length;
+ return `<div class="area" id="blk-${bi}">
+ <div class="ahead"><select onchange="setArea(${bi},this.value)">${AREAS.map(x=>`<option ${x.name===b.area?'selected':''} ${used.has(x.name)?'disabled':''}>${esc(x.name)}</option>`).join('')}</select>${S.blocks.length>1?`<button onclick="delBlock(${bi})" title="Remove this area">✕</button>`:''}</div>
+ <div class="hint">${esc(areaRec(b).info)}</div>
+ <div class="row"><div><label>Planting type</label><select onchange="B(${bi}).ptype=this.value;saveNow();render()">${PTYPES.map(o=>`<option ${(b.ptype||PTYPES[0])===o?'selected':''}>${o}</option>`).join('')}</select></div><div><label>Sub area (optional)</label><input value="${esc(b.subArea)}" placeholder="e.g. C-2/3 South" oninput="B(${bi}).subArea=this.value;saveNow()"></div></div>
+ <label>Packing slip photo(s) for ${esc(b.area)}${nSlip?' · '+nSlip+' added':''}</label>
+ <label class="addbtn">📷 Add packing slip photo<input type="file" accept="image/*" multiple hidden onchange="addPhotos(this,'${b.id}')"></label>
+ <div class="photos" id="slip-${b.id}"></div>
+ <label>Quick fill: how much of ${esc(b.area)}'s plants on site are in the ground now?</label>
+ <select id="pall-${bi}" onchange="setAll(${bi},this.value)"><option value="">Pick one % for the whole list…</option>${PCTS.map(x=>`<option value="${x}" ${!blankV(b.all)&&num(b.all)===x?'selected':''}>${x}% of everything delivered</option>`).join('')}</select>
+ <div class="hint">Type Delivered today first. The quick fill sets every plant at once; change any line after if it was different.</div>
+ ${rows}<div class="tot" id="ptot-${bi}">${totTxt(b)}</div>
+ <label>WHOLE AREA: how much of all of ${esc(b.area)} is planted so far? (rough guess is fine)</label>
+ <select onchange="B(${bi}).pct=this.value;saveNow();render()"><option value="">Choose…</option>${PCTS.map(v=>`<option value="${v}" ${String(b.pct)===String(v)?'selected':''}>About ${v}%</option>`).join('')}</select>
+ <div class="hint">${lp?`Last report (${esc(lp.date)}): about ${lp.pct}%`:'No earlier report for this area on this phone.'}</div>
+ <label>Section worked today (optional), e.g. "SE side", and how much of THAT section is planted</label>
+ <div class="row"><input value="${esc(b.secName)}" placeholder="e.g. SE side" oninput="B(${bi}).secName=this.value;saveNow()"><select onchange="B(${bi}).secPct=this.value;saveNow()"><option value="">%…</option>${[0,10,20,30,40,50,60,70,80,85,90,95,100].map(v=>`<option value="${v}" ${String(b.secPct)===String(v)?'selected':''}>About ${v}%</option>`).join('')}</select></div>
+</div>`}
 function render(){
  const open=[...document.querySelectorAll('details')].map(d=>d.open);
- const a=area();
  const ids=[];let checksHtml='',nChk=0,nDone=0;
  CHECKS.forEach(([g,items],gi)=>{checksHtml+=`<div class="grp">${g}<button onclick="tickAll(${gi})">Tick all ✓</button></div>`;
   items.forEach((t,ii)=>{const id=gi+'.'+ii,v=S.checks[id]||'',isYN=t[0]==='*';nChk++;if(v)nDone++;
    const lbl=isYN?(v==='y'?'YES':v==='n'?'NO':''):(v==='y'?'✓':v==='na'?'N/A':'');
    checksHtml+=`<div class="chk" onclick="cyc('${id}',${isYN})"><div class="box ${v==='y'?(isYN?'no':'y'):v==='n'?'y':v}">${lbl}</div><div class="tx">${esc(isYN?t.slice(1)+' (tap: YES / NO)':t)}</div><button class="nb ${cnote(id)?'on':''}" onclick="event.stopPropagation();togN('${id}')">${cnote(id)?'✎ Note':'+ Note'}</button></div>`;
    if(OPENN.has(id)||cnote(id))checksHtml+=`<textarea class="cnote" id="cn-${id}" placeholder="Describe the problem or concern" oninput="(S.cn=S.cn||{})['${id}']=this.value;saveNow()">${esc(cnote(id))}</textarea>`});checksHtml+=sn('chk'+gi)});
- let plantHtml='<div class="phead"><span>Species</span><span>Delivered today</span><span>% planted to date</span><span>Installed today</span></div>',td=0,ti=0;
- a.plants.forEach((p,ix)=>{const v=S.plants[p[1]]||{};td+=num(v.d);ti+=num(v.i);const{pr,base}=pctBase(p[1]),was=pr.d?Math.round(pr.i/pr.d*100):'';
-  const pt=prevTot(p[1]);plantHtml+=`<div class="plant"><div class="nm">${esc(p[1])}<small>${p[3]}${p[4]!==''?' · plan '+p[4]:''} · ${payOf(p)}</small>${pt.d||pt.i?`<small style="color:var(--brand2)">Before today: delivered ${pt.d} · installed ${pt.i} · <b>${Math.max(0,pt.d-pt.i)} on site</b>${was!==''?' · '+was+'% planted':''}</small>`:''}</div><input inputmode="numeric" value="${esc(v.d)}" oninput="setP('${esc(p[1])}','d',this.value)"><select id="ps-${ix}" style="padding:9px 2px" ${base?'':'disabled'} onchange="setPct('${esc(p[1])}',this.value)"><option value="">${pctLabel(p[1])}</option>${PCTS.map(x=>`<option value="${x}" ${v.p!==undefined&&v.p!==''&&num(v.p)===x?'selected':''}>${x}%</option>`).join('')}</select><input inputmode="numeric" id="pi-${ix}" value="${esc(v.i)}" oninput="setI('${esc(p[1])}',this.value)" style="text-align:center;font-weight:700;padding:9px 2px"></div>`});
  let extraHtml='<div class="phead" style="grid-template-columns:1fr 74px 74px"><span>Item</span><span>Delivered</span><span>Installed</span></div>';
  EXTRA.forEach(([k,n,u])=>{const v=S.extra[k]||{};extraHtml+=`<div class="plant" style="grid-template-columns:1fr 74px 74px"><div class="nm">${n}<small>${u}</small></div><input inputmode="decimal" value="${esc(v.d)}" oninput="setX('${k}','d',this.value)"><input inputmode="decimal" value="${esc(v.i)}" oninput="setX('${k}','i',this.value)"></div>`});
  document.getElementById('app').innerHTML=`
@@ -198,29 +258,22 @@ function render(){
  <div class="row">${f('staff','Staff count','number','inputmode="numeric"')}<div></div></div>
  ${sn('today')}
 </div></details>
-<details><summary>2. Area &amp; tasks <span class="st done">${esc(S.area)}</span></summary><div class="body">
- <label>Area worked</label><select onchange="S.area=this.value;saveNow();render()">${AREAS.map(x=>`<option ${x.name===S.area?'selected':''}>${esc(x.name)}</option>`).join('')}</select>
- <div class="hint">${esc(a.info)}</div>
- <label>Planting type</label><select onchange="S.ptype=this.value;saveNow();render()">${PTYPES.map(o=>`<option ${(S.ptype||PTYPES[0])===o?'selected':''}>${o}</option>`).join('')}</select>
- ${f('subArea','Sub area (optional)','text')}
+<details><summary>2. Areas &amp; plants <span class="st done">${esc(areaNames())}</span></summary><div class="body">
+ <div class="hint"><b>One box per area worked today.</b> Pick the area at the top of the box and that area's plant list comes up. <b>Delivered today</b>: type exactly what the packing slip says arrived for that area, even if it's more than the drawing, and add a photo of the slip. Leave it blank if nothing came. Then pick one <b>quick fill %</b> for the whole list, or a % on each plant, or type the exact <b>Installed today</b> count. The green line under a plant is what earlier reports on this phone have delivered and installed there. Worked in more than one area today? Tap <b>+ Add another area</b> at the bottom.</div>
+ ${S.blocks.map(blockHtml).join('')}
+ <button class="addbtn" style="width:100%" onclick="addBlock()">+ Add another area worked today</button>
+ ${S.blocks.length>1?'<div class="tot" id="gtot" style="font-weight:700;color:var(--ink)">'+gtotTxt()+'</div>':''}
+ <div class="hint">Put percentages in the % boxes only, not in notes, so the report never shows two different numbers.</div>
+ ${sn('plants')}
+ <div class="grp">Other pay items</div>${extraHtml}
+</div></details>
+<details><summary>3. Tasks &amp; GPS</summary><div class="body">
  <label>Tasks completed</label><textarea oninput="S.tasks=this.value;saveNow()">${esc(S.tasks)}</textarea>
  <label>Summary of today's work</label><textarea placeholder="e.g. Finished layout / Planted along the north side" oninput="S.summary=this.value;saveNow()">${esc(S.summary)}</textarea>
  <div class="grp">GPS location of work area</div>
  ${(S.gps||[]).map((g,i)=>`<div class="plant" style="grid-template-columns:1fr 60px"><div class="nm"><input value="${esc(g.label)}" placeholder="Label (optional) e.g. North edge" oninput="S.gps[${i}].label=this.value;saveNow()" style="padding:8px"><small><a href="${mapUrl(g)}" target="_blank">${g.lat.toFixed(5)}, ${g.lon.toFixed(5)}</a> · ±${g.acc} m · ${esc(g.time)}</small></div><button onclick="S.gps.splice(${i},1);saveNow();render()">✕</button></div>`).join('')}
  <button style="width:100%;margin-top:8px" onclick="markGps(this)">📍 Mark GPS location${(S.gps||[]).length?' (add another)':''}</button>
  ${sn('area')}
-</div></details>
-<details><summary>3. Plants <span class="st ${S.pct!==''?'done':''}">${S.pct!==''?'~'+S.pct+'% planted':''}</span></summary><div class="body">
- <label>WHOLE AREA: how much of all of ${esc(S.area)} is planted so far? (rough guess is fine)</label>
- <select onchange="S.pct=this.value;saveNow();render()"><option value="">Choose…</option>${[0,10,20,30,40,50,60,70,80,90,100].map(v=>`<option value="${v}" ${String(S.pct)===String(v)?'selected':''}>About ${v}%</option>`).join('')}</select>
- <div class="hint">${lastPct()?`Last report (${esc(lastPct().date)}): about ${lastPct().pct}%`:'No earlier report for this area on this phone.'}</div>
- <label>Section worked today (optional), e.g. "SE side", and how much of THAT section is planted</label>
- <div class="row"><input value="${esc(S.secName)}" placeholder="e.g. SE side" oninput="S.secName=this.value;saveNow()"><select onchange="S.secPct=this.value;saveNow()"><option value="">%…</option>${[0,10,20,30,40,50,60,70,80,85,90,95,100].map(v=>`<option value="${v}" ${String(S.secPct)===String(v)?'selected':''}>About ${v}%</option>`).join('')}</select></div>
- <div class="hint">Put percentages in these two boxes only, not in notes, so the report never shows two different numbers.</div>
- <div class="hint"><b>Delivered today</b>: only plants that ARRIVED today, from the slip. Leave blank if no delivery. <b>% planted to date</b>: for each plant, how much of everything delivered so far is now in the ground. The app works out <b>Installed today</b> for you. If you know the exact count, type it in Installed today instead and the % box shows what it works out to. The green line under each plant is the running tally from earlier reports on this phone: what's been delivered, what's been installed, and what's still on site to plant.</div>
- <button style="width:100%;margin:8px 0" onclick="allDone()">✓ Everything delivered so far is planted (all 100%)</button>${plantHtml}<div class="tot" id="ptot">Delivered today ${td} · Installed today ${ti}${td?'':' · no delivery today'}</div>
- ${sn('plants')}
- <div class="grp">Other pay items</div>${extraHtml}
 </div></details>
 <details><summary>4. Stock &amp; site <span class="st ${S.stockHrs!==''?'done':''}">${S.stockHrs!==''?S.stockHrs+' hrs stock':''}</span></summary><div class="body">
  <div class="hint">HARD LIMIT: no more than TWO DAYS (48 hours) of plant material on site unless watering is available or weather allows.</div>
@@ -248,8 +301,6 @@ function render(){
  document.querySelectorAll('details').forEach((d,i)=>{if(open.length)d.open=open[i]});
  drawPhotos();initSig();
 }
-function setP(n,k,v){const o=S.plants[n]=S.plants[n]||{};o[k]=v;applyPct(n);if((o.p===undefined||o.p==='')&&o.i!==undefined&&o.i!=='')typedS(n);saveNow();rowSync(n)}
-function cycS(n){const v=S.plants[n]=S.plants[n]||{};v.s=!v.s?'S':v.s==='S'?'D':'';saveNow();render()}
 function setX(n,k,v){(S.extra[n]=S.extra[n]||{})[k]=v;saveNow()}
 function cyc(id,isYN){const v=S.checks[id]||'';S.checks[id]=isYN?(v===''?'y':v==='y'?'n':''):(v===''?'y':v==='y'?'na':'');saveNow();render()}
 function tickAll(gi){CHECKS[gi][1].forEach((t,ii)=>{if(t[0]!=='*'&&!S.checks[gi+'.'+ii])S.checks[gi+'.'+ii]='y'});saveNow();render()}
@@ -262,7 +313,7 @@ function initSig(){const c=document.getElementById('sig');if(!c)return;const r=c
  c.onpointerup=()=>{dn=false;S.sig=c.toDataURL('image/png');saveNow()}}
 document.addEventListener('toggle',e=>{if(e.target.open&&e.target.querySelector('#sig'))initSig()},true);
 async function newDay(){if(!confirm('Start a new day? This clears today\'s counts, checklist, notes and photos (names and area are kept).'))return;
- const b=blank();KEEP.forEach(k=>b[k]=S[k]);S=b;PHOTOS=[];await dbClear();saveNow();render();getWx();toast('New report started')}
+ S=fresh();PHOTOS=[];await dbClear();saveNow();render();getWx();toast('New report started')}
 
 // ---------- Excel output ----------
 const thin={style:'thin',color:{argb:'FF000000'}},BOX={top:thin,left:thin,bottom:thin,right:thin},GREY={type:'pattern',pattern:'solid',fgColor:{argb:'FFD9D9D9'}};
@@ -302,40 +353,41 @@ function pdfSheet(doc,ws,onePage,first){
   for(let n=0;n<fl.length;n+=2){const pr=fl.slice(n,n+2),H=Math.max(...pr.map(i=>W*i.h/i.w));if(y+H>PH-M){doc.addPage();y=M}
    pr.forEach((i,j)=>doc.addImage(i.data,fmt(i.data),M+j*(W+10),y,W,W*i.h/i.w));y+=H+10}}
 }
-function buildWb(){const wb=new ExcelJS.Workbook();wb.creator='Blue Pine Enterprises';sheetFDR(wb);sheetQMP(wb);return wb}
+function buildWb(photos=PHOTOS){const wb=new ExcelJS.Workbook();wb.creator='Blue Pine Enterprises';sheetFDR(wb,photos);sheetQMP(wb);return wb}
 function buildPdf(wb){const doc=new window.jspdf.jsPDF({unit:'pt',format:'letter'});const [a,b]=wb.worksheets;pdfSheet(doc,a,false,true);pdfSheet(doc,b,true,false);return doc.output('blob')}
-const baseName=()=>`KEA Daily Report ${S.date} ${S.area.replace(/[\/\\]/g,'-')}`;
+const baseName=()=>`KEA Daily Report ${S.date} ${areaNames().replace(/[\/\\]/g,'-')}`;
 function dl(blob,name){const u=URL.createObjectURL(blob),l=document.createElement('a');l.href=u;l.download=name;document.body.appendChild(l);l.click();l.remove();setTimeout(()=>URL.revokeObjectURL(u),5000)}
-async function saveExcel(){if(typeof ExcelJS==='undefined')return toast('Needs signal the first time.');const buf=await buildWb().xlsx.writeBuffer();dl(new Blob([buf]),baseName()+'.xlsx');toast('Excel copy saved to Downloads')}
+async function saveExcel(){if(typeof ExcelJS==='undefined')return toast('Needs signal the first time.');const buf=await buildWb(await reportPhotos()).xlsx.writeBuffer();dl(new Blob([buf]),baseName()+'.xlsx');toast('Excel copy saved to Downloads')}
 const blankIf=(v,d='')=>v===''||v==null?d:v;
 
-function sheetFDR(wb){
+function sheetFDR(wb,photos){
  const ws=wb.addWorksheet('Daily Field Report',{pageSetup:{paperSize:1,orientation:'portrait',fitToPage:true,fitToWidth:1,fitToHeight:0,margins:{left:.4,right:.4,top:.5,bottom:.5,header:.2,footer:.2}}});
  ws.columns=[{width:26},{width:26},{width:20},{width:14},{width:26},{width:30}];
  ws.getRow(1).height=40;put(ws,'B1:D1','Daily Field Report',{size:18,bold:true,h:'center',fill:1,box:1});put(ws,'E1:F1','KEA\nFraser Valley Connectors',{size:12,bold:true,h:'center'});
- const L=[['Project No.',PROJECT.no],['Project Name',PROJECT.name],['Report Submitted By',S.by+' (BPL)']],R=[['Shift Date',S.date],['Shift Start/Stop (24 Hr.)',S.shift],['Work Location',S.area+locSfx()+(S.subArea?' - '+S.subArea:'')],['Weather (High/Low/Conditions)',`${blankIf(S.hi)}/${blankIf(S.lo)}°C ${S.cond}`]];
+ const L=[['Project No.',PROJECT.no],['Project Name',PROJECT.name],['Report Submitted By',S.by+' (BPL)']],R=[['Shift Date',S.date],['Shift Start/Stop (24 Hr.)',S.shift],['Work Location',locAll()],['Weather (High/Low/Conditions)',`${blankIf(S.hi)}/${blankIf(S.lo)}°C ${S.cond}`]];
  L.forEach((x,i)=>{put(ws,'A'+(i+2),x[0],{bold:1,fill:1,box:1});put(ws,'B'+(i+2),x[1],{box:1})});
  R.forEach((x,i)=>{put(ws,'E'+(i+2),x[0],{bold:1,fill:1,box:1});put(ws,'F'+(i+2),x[1],{box:1})});
  [['Staff Count',S.staff]].forEach((x,i)=>{put(ws,'A'+(i+6),x[0],{bold:1,fill:1,box:1});put(ws,'B'+(i+6),x[1]===''?'':num(x[1]),{box:1,h:'left'})});
  ws.getRow(10).height=22;['Area','Sub Area','Subcontractors'].forEach((t,i)=>put(ws,'ABC'[i]+'10',t,{size:12,bold:1,fill:1,box:1}));put(ws,'D10:F10','Tasks Completed',{size:12,bold:1,fill:1,box:1});
- const a=area(),lp=lastPct(),del=delTot(),ins=insTot(),pl=pctLines();
- const task=S.tasks+(del?`\n- Plants delivered to site today: ${del} (see list below)`:'\n- No plant delivery today')+(ins?`\n- Plants installed today: approx. ${ins} (see list below)`:'')+`\n- Plants on site not yet installed (all deliveries to date minus all installed): approx. ${onSite()}`+pl.map((t,i)=>`\n- ${t}`+(i===0&&lp&&lp.date!==S.date?` (last report ${lp.date}: approx. ${lp.pct}%)`:'')).join('');
- put(ws,'A11',S.area,{size:12,bold:1,h:'center',v:'top',box:1});put(ws,'B11',S.subArea,{v:'top',box:1});put(ws,'C11',PROJECT.sub,{size:12,bold:1,h:'center',v:'top',box:1});put(ws,'D11:F11',task,{v:'top',box:1});fitH(ws,11,task,70,60);
+ const del=delTot(),ins=insTot(),pl=pctLines(),multi=S.blocks.length>1;
+ const task=S.tasks+(del?`\n- Plants delivered to site today: ${del} (see list below)`:'\n- No plant delivery today')+(ins?`\n- Plants installed today: approx. ${ins} (see list below)`:'')+(multi?S.blocks.map(b=>`\n- ${b.area}: delivered ${bDel(b)}, installed ${bIns(b)}`).join(''):'')+`\n- Plants on site not yet installed (all deliveries to date minus all installed): approx. ${onSite()}`+pl.map(t=>`\n- ${t}`).join('');
+ put(ws,'A11',S.blocks.map(b=>b.area).join('\n'),{size:12,bold:1,h:'center',v:'top',box:1});put(ws,'B11',S.blocks.map(b=>b.subArea||'').filter(Boolean).join('\n'),{v:'top',box:1});put(ws,'C11',PROJECT.sub,{size:12,bold:1,h:'center',v:'top',box:1});put(ws,'D11:F11',task,{v:'top',box:1});fitH(ws,11,task,70,60);
  put(ws,'A12',''),boxRange(ws,'A12','C12');put(ws,'D12:F12',S.summary||'',{h:'center',box:1});fitH(ws,12,S.summary,70,40);
  let r=13;NOTES.forEach(([k,n])=>{put(ws,`A${r}:F${r}`,n,{bold:1,fill:1,box:1});r++;const nt=noteOut(k);put(ws,`A${r}:F${r}`,nt,{v:'top',box:1});fitH(ws,r,nt,150,20);r++});
- const CN=[['today','Today'],['area','Area & tasks'],['plants','Plants'],['stock','Stock & site'],...CHECKS.map((c,i)=>['chk'+i,'Checklist '+c[0]]),['photos','Photos']].filter(([k])=>((S.sn||{})[k]||'').trim());
+ const CN=[['today','Today'],['area','Tasks & GPS'],['plants','Areas & plants'],['stock','Stock & site'],...CHECKS.map((c,i)=>['chk'+i,'Checklist '+c[0]]),['photos','Photos']].filter(([k])=>((S.sn||{})[k]||'').trim());
  const IN=itemNotes();if(CN.length||IN.length){put(ws,`A${r}:F${r}`,'Crew Notes',{bold:1,fill:1,box:1});r++;const t=CN.map(([k,n])=>`${n}: ${S.sn[k].trim()}`).concat(IN.length?['Checklist item notes:',...IN]:[]).join('\n');put(ws,`A${r}:F${r}`,t,{v:'top',box:1});fitH(ws,r,t,150,20);r++}
  if((S.gps||[]).length){put(ws,`A${r}:F${r}`,'GPS Location(s) - tap to open map',{bold:1,fill:1,box:1});r++;
   S.gps.forEach(g=>{put(ws,`A${r}:F${r}`,{text:`${g.label?g.label+' - ':''}${g.lat.toFixed(5)}, ${g.lon.toFixed(5)}  (±${g.acc} m, ${g.time})`,hyperlink:mapUrl(g)},{box:1});ws.getCell('A'+r).font={name:'Calibri',size:10,color:{argb:'FF0563C1'},underline:true};r++})}
  put(ws,`A${r}:F${r}`,'Pictures',{bold:1,fill:1,box:1,h:'center'});r+=2;
  // plant table
- put(ws,`A${r}:F${r}`,`${S.area}  -  Plants  -  ${S.date}`,{bold:1,h:'center'});r++;
- ['Category','Species','Size · Plan total','Delivered Today','Installed Today','Status (installed / delivered to date)'].forEach((t,i)=>put(ws,String.fromCharCode(65+i)+r,t,{bold:1,fill:1,box:1,h:'center'}));r++;
- a.plants.forEach(p=>{const v=S.plants[p[1]]||{};[p[0],p[1],p[3]+(p[4]!==''?' · '+p[4]:''),v.d?num(v.d):'',v.i?num(v.i):'',(()=>{const t=toDate(p[1]);return[v.s?STAT[v.s]:'',t.d||t.i?`${t.i} / ${t.d}`:''].filter(Boolean).join(' · ')})()].forEach((x,i)=>put(ws,String.fromCharCode(65+i)+r,x,{box:1,h:i>1?'center':'left'}));r++});
- put(ws,`A${r}:C${r}`,'Total',{bold:1,box:1,h:'right'});put(ws,'D'+r,del||'None',{bold:1,box:1,h:'center'});put(ws,'E'+r,ins||'',{bold:1,box:1,h:'center'});put(ws,'F'+r,S.pct!==''?`~${S.pct}% of whole area`:'',{bold:1,box:1,h:'center'});r+=2;
+ S.blocks.forEach(b=>{put(ws,`A${r}:F${r}`,`${b.area}${sfx(b)}${b.subArea?' - '+b.subArea:''}  -  Plants  -  ${S.date}`,{bold:1,h:'center'});r++;
+ ['Category','Species','Size','Delivered Today','Installed Today','Status (installed / delivered to date)'].forEach((t,i)=>put(ws,String.fromCharCode(65+i)+r,t,{bold:1,fill:1,box:1,h:'center'}));r++;
+ plantsOf(b).forEach(p=>{const v=b.plants[p[1]]||{};[p[0],p[1],p[3],v.d?num(v.d):'',v.i?num(v.i):'',(()=>{const t=toDate(b,p[1]);return[v.s?STAT[v.s]:'',t.d||t.i?`${t.i} / ${t.d}`:''].filter(Boolean).join(' · ')})()].forEach((x,i)=>put(ws,String.fromCharCode(65+i)+r,x,{box:1,h:i>1?'center':'left'}));r++});
+ const bd=bDel(b),bn=bIns(b);put(ws,`A${r}:C${r}`,multi?b.area+' total':'Total',{bold:1,box:1,h:'right'});put(ws,'D'+r,bd||'None',{bold:1,box:1,h:'center'});put(ws,'E'+r,bn||'',{bold:1,box:1,h:'center'});put(ws,'F'+r,b.pct!==''?`~${b.pct}% of whole area`:'',{bold:1,box:1,h:'center'});r+=2});
+ if(multi){put(ws,`A${r}:C${r}`,'All areas total',{bold:1,box:1,h:'right',fill:1});put(ws,'D'+r,del||'None',{bold:1,box:1,h:'center'});put(ws,'E'+r,ins||'',{bold:1,box:1,h:'center'});put(ws,'F'+r,'',{box:1});r+=2}
  // photos two across
  const colPx=[0,187,374,519,617,804],W=390;
- for(let i=0;i<PHOTOS.length;i+=2){let hMax=0;[PHOTOS[i],PHOTOS[i+1]].forEach((p,j)=>{if(!p)return;const h=Math.round(W*p.h/p.w);hMax=Math.max(hMax,h);imgAdd(wb,ws,p.data,j?3.3:0.1,r-1,W,h,1)});r+=Math.ceil(hMax/20)+1}
+ for(let i=0;i<photos.length;i+=2){let hMax=0;[photos[i],photos[i+1]].forEach((p,j)=>{if(!p)return;const h=Math.round(W*p.h/p.w);hMax=Math.max(hMax,h);imgAdd(wb,ws,p.data,j?3.3:0.1,r-1,W,h,1)});r+=Math.ceil(hMax/20)+1}
 }
 
 function sheetQMP(wb){
@@ -344,7 +396,7 @@ function sheetQMP(wb){
  ws.getRow(1).height=30;put(ws,'A1:L1','DAILY QUALITY MANAGEMENT PLAN',{size:16,bold:1,h:'center'});
  put(ws,'A2:B2','Project:',{bold:1,fill:1,box:1});put(ws,'C2:F2',PROJECT.qmpName,{box:1});put(ws,'G2:H2','Attention:',{bold:1,fill:1,box:1});put(ws,'I2:L2','KEA - daily submission',{box:1});
  put(ws,'A3:B3','Date:',{bold:1,fill:1,box:1});put(ws,'C3:F3',S.date,{box:1});put(ws,'G3:H3','Item:',{bold:1,fill:1,box:1});put(ws,'I3:L3','Restoration and Landscape Planting',{box:1});
- put(ws,'A5:B5','Date',{bold:1,fill:1,box:1});put(ws,'C5:D5',S.date,{box:1});put(ws,'E5:F5','Area(s) worked',{bold:1,fill:1,box:1});put(ws,'G5:H5',S.area+locSfx()+(S.subArea?' - '+S.subArea:''),{box:1});put(ws,'I5:J5','Foreman',{bold:1,fill:1,box:1});put(ws,'K5:L5',S.foreman,{box:1});
+ put(ws,'A5:B5','Date',{bold:1,fill:1,box:1});put(ws,'C5:D5',S.date,{box:1});put(ws,'E5:F5','Area(s) worked',{bold:1,fill:1,box:1});put(ws,'G5:H5',locAll(),{box:1,size:S.blocks.length>1?8:10});put(ws,'I5:J5','Foreman',{bold:1,fill:1,box:1});put(ws,'K5:L5',S.foreman,{box:1});
  put(ws,'A6:B6','Crew size',{bold:1,fill:1,box:1});put(ws,'C6:D6',S.staff===''?'':num(S.staff),{box:1,h:'left'});put(ws,'E6:F6','Weather',{bold:1,fill:1,box:1});put(ws,'G6:H6',`${blankIf(S.hi)}/${blankIf(S.lo)}°C ${S.cond}`,{box:1});put(ws,'I6:J6','KEA rep',{bold:1,fill:1,box:1});put(ws,'K6:L6',S.keaRep,{box:1});
  ws.getRow(8).height=44;put(ws,'A8:C8','PLANT MATERIAL ON SITE - HARD LIMIT',{bold:1,fill:1,box:1});put(ws,'D8:I8','No more than TWO DAYS (48 hours) of plant material on site at any time, unless there is watering available on site or weather conditions allow the stock to survive. Record hours of stock on hand every day.',{size:9,box:1});put(ws,'J8:K8','Hours of stock on site:',{bold:1,fill:1,box:1});put(ws,'L8',S.stockHrs===''?'':num(S.stockHrs),{box:1,h:'center',bold:1});
  put(ws,'A9:C9','Watering available on site today?',{bold:1,fill:1,box:1});put(ws,'D9:I9',(S.watering||'YES / NO')+'   If NO, stock on site must not exceed 2 days.',{box:1});put(ws,'J9:K9','Weather suitable?',{bold:1,fill:1,box:1});put(ws,'L9',S.weatherOk||'YES / NO',{box:1,h:'center',bold:1});
@@ -361,9 +413,11 @@ function sheetQMP(wb){
  let r=maxR+1;const hdr=[['A:D','Pay item'],['E:F','Area'],['G:H','Delivered today'],['I:J','Installed today'],['K:L','Notes']];
  const cell=(rng,row,val,o)=>{const [a,b]=rng.split(':');put(ws,`${a}${row}:${b}${row}`,val,Object.assign({box:1},o))};
  hdr.forEach(([rg,t])=>cell(rg,r,t,{bold:1,fill:1,h:'center'}));r++;
- const pay={Conifers:[0,0,0],Deciduous:[0,0,0],Shrubs:[0,0,0],Emergent:[0,0,0]};area().plants.forEach(p=>{const v=S.plants[p[1]]||{},q=pay[payOf(p)];q[0]+=num(v.d);q[2]+=num(v.i);if(v.s)q[1]++;if(v.s!=='D'&&toDate(p[1]).d>0)q.open=1});
- const rows=Object.entries(pay).map(([k,x])=>[k,x[0],x[2],x[1]?(x.open?'Planting in progress':'Complete'):'']).concat(EXTRA.map(([k,n,u])=>{const v=S.extra[k]||{};return[n,v.d===undefined||v.d===''?'':num(v.d),v.i===undefined||v.i===''?'':num(v.i),(v.d||v.i)?u:'']}));
- rows.forEach(([n,d,i,note])=>{const any=d||i;cell('A:D',r,n);cell('E:F',r,any?S.area:'',{size:9});cell('G:H',r,d||'',{h:'center'});cell('I:J',r,i||'',{h:'center'});cell('K:L',r,note,{size:9});r++});
+ const rows=[],multi=S.blocks.length>1;S.blocks.forEach(b=>{const pay={Conifers:[0,0,0],Deciduous:[0,0,0],Shrubs:[0,0,0],Emergent:[0,0,0]};plantsOf(b).forEach(p=>{const v=b.plants[p[1]]||{},q=pay[payOf(p)];q[0]+=num(v.d);q[2]+=num(v.i);if(v.s)q[1]++;if(v.s!=='D'&&toDate(b,p[1]).d>0)q.open=1});
+  Object.entries(pay).forEach(([k,x])=>{if(!multi||x[0]||x[2]||x[1])rows.push([k,x[0]||x[2]?b.area:'',x[0],x[2],x[1]?(x.open?'Planting in progress':'Complete'):''])})});
+ if(!rows.length)['Conifers','Deciduous','Shrubs','Emergent'].forEach(k=>rows.push([k,'',0,0,'']));
+ EXTRA.forEach(([k,n,u])=>{const v=S.extra[k]||{},d=v.d===undefined||v.d===''?'':num(v.d),i=v.i===undefined||v.i===''?'':num(v.i);rows.push([n,d||i?areaNames():'',d,i,(v.d||v.i)?u:''])});
+ rows.forEach(([n,ar,d,i,note])=>{cell('A:D',r,n);cell('E:F',r,ar,{size:9});cell('G:H',r,d||'',{h:'center'});cell('I:J',r,i||'',{h:'center'});cell('K:L',r,note,{size:9});r++});
  cell('A:C',r,'Growing medium depth checked (mm)',{bold:1,fill:1,size:9});cell('D:D',r,S.gm===''?'':num(S.gm),{h:'center'});cell('E:G',r,'Mulch depth checked (mm)',{bold:1,fill:1,size:9});cell('H:H',r,S.mulch===''?'':num(S.mulch),{h:'center'});cell('I:J',r,'Machines on site today:',{bold:1,fill:1,size:9});cell('K:L',r,S.machines||'None',{size:9});ws.getRow(r).height=28;r+=2;
  cell('A:C',r,'Issues / delays / deficiencies',{bold:1,fill:1,v:'top'});const iss=[S.issues||(itemNotes().length?'':'None'),...itemNotes(),...pctLines(),...CHECKS.map((c,i)=>(S.sn||{})['chk'+i]?c[0]+': '+S.sn['chk'+i]:''),(S.sn||{}).stock?'Stock & site: '+S.sn.stock:''].filter(Boolean).join('\n');
  cell('D:L',r,iss,{v:'top'});fitH(ws,r,iss,90,40);r+=2;
@@ -373,13 +427,13 @@ function sheetQMP(wb){
 }
 
 async function makeReport(){
- const miss=[];if(!S.by)miss.push('Submitted by');if(S.staff==='')miss.push('Staff count');if(S.pct==='')miss.push('% of area planted');if(S.stockHrs==='')miss.push('Hours of stock on site');if(!S.sig)miss.push('Foreman signature');
+ const miss=[];if(!S.by)miss.push('Submitted by');if(S.staff==='')miss.push('Staff count');S.blocks.forEach(b=>{if(b.pct==='')miss.push('% of '+b.area+' planted')});if(S.stockHrs==='')miss.push('Hours of stock on site');if(!S.sig)miss.push('Foreman signature');
  if(miss.length&&!confirm('Missing: '+miss.join(', ')+'.\n\nCreate the report anyway?'))return;
  if(typeof ExcelJS==='undefined'){toast('Needs signal the very first time to load. Try again with signal.');return}
- toast('Building report…');logToday();try{const m=JSON.parse(localStorage.getItem('kea-last'))||{};if(S.pct!==''){m[S.area]={pct:S.pct,date:S.date};localStorage.setItem('kea-last',JSON.stringify(m))}}catch(e){}
+ toast('Building report…');logToday();try{const m=JSON.parse(localStorage.getItem('kea-last'))||{};S.blocks.forEach(b=>{if(b.pct!=='')m[b.area]={pct:b.pct,date:S.date}});localStorage.setItem('kea-last',JSON.stringify(m))}catch(e){}
  if(!window.jspdf){toast('Needs signal the very first time to load. Try again with signal.');return}
- const name=baseName()+'.pdf',file=new File([buildPdf(buildWb())],name,{type:'application/pdf'});
- const txt=`Daily Field Report + QMP checksheet - ${S.area} - ${S.date}\nSubmitted by ${S.by}\nSend to: ${PROJECT.email}`;
+ const name=baseName()+'.pdf',file=new File([buildPdf(buildWb(await reportPhotos()))],name,{type:'application/pdf'});
+ const txt=`Daily Field Report + QMP checksheet - ${areaNames()} - ${S.date}\nSubmitted by ${S.by}\nSend to: ${PROJECT.email}`;
  if(navigator.canShare&&navigator.canShare({files:[file]})){try{await navigator.share({files:[file],title:name,text:txt});toast('Sent');return}catch(e){if(e.name==='AbortError')return}}
  dl(file,name);
  setTimeout(()=>{if(confirm('Report saved to Downloads.\n\nOpen email to '+PROJECT.email+' now? (Attach the file from Downloads.)'))location.href=`mailto:${PROJECT.email}?${PROJECT.cc?'cc='+PROJECT.cc+'&':''}subject=${encodeURIComponent(baseName())}&body=${encodeURIComponent(txt+'\n\n(Report attached)')}`},600);
@@ -388,7 +442,7 @@ async function makeReport(){
 (async()=>{PHOTOS=await dbAll();
  // Yesterday's draft must not carry into today (Oct 14 report repeated Oct 13's 760 delivered)
  const today=new Date().toLocaleDateString('en-CA');
- if(S.date&&S.date!==today&&confirm(`This report is still dated ${S.date}.\n\nOK = start today's report (clears ${S.date}'s counts, checklist, notes and photos; names and area are kept).\nCancel = keep working on the ${S.date} report.`)){const b=blank();KEEP.forEach(k=>b[k]=S[k]);S=b;PHOTOS=[];await dbClear();saveNow();setTimeout(()=>toast('New report started for '+today),400)}
+ if(S.date&&S.date!==today&&confirm(`This report is still dated ${S.date}.\n\nOK = start today's report (clears ${S.date}'s counts, checklist, notes and photos; names and area are kept).\nCancel = keep working on the ${S.date} report.`)){S=fresh();PHOTOS=[];await dbClear();saveNow();setTimeout(()=>toast('New report started for '+today),400)}
  render();getWx();if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js')})();
 </script>
 </body>
